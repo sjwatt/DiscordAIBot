@@ -21,6 +21,7 @@ class Template(commands.Cog, name="template"):
         name="testcommand",
         description="This is a testing command that does nothing.",
     )
+    @commands.check(lambda ctx: ctx.guild is None or ctx.channel.name in self.bot.AllowedChannels)
     async def testcommand(self, context: Context) -> None:
         """
         This is a testing command that does nothing.

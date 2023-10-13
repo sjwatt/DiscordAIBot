@@ -28,6 +28,11 @@ class General(commands.Cog, name="general"):
         )
         self.bot.tree.add_command(self.context_menu_message)
 
+    def channel_check(ctx):
+        if ctx.bot.channel_check(ctx):
+            return True
+        return False
+    
     # Message context menu command
     async def remove_spoilers(
         self, interaction: discord.Interaction, message: discord.Message
@@ -71,6 +76,7 @@ class General(commands.Cog, name="general"):
     @commands.hybrid_command(
         name="help", description="List all commands the bot has loaded."
     )
+    @commands.check(channel_check)
     async def help(self, context: Context) -> None:
         prefix = self.bot.config["prefix"]
         embed = discord.Embed(
@@ -95,6 +101,7 @@ class General(commands.Cog, name="general"):
         name="botinfo",
         description="Get some useful (or not) information about the bot.",
     )
+    @commands.check(channel_check)
     async def botinfo(self, context: Context) -> None:
         """
         Get some useful (or not) information about the bot.
@@ -122,6 +129,7 @@ class General(commands.Cog, name="general"):
         name="serverinfo",
         description="Get some useful (or not) information about the server.",
     )
+    @commands.check(channel_check)
     async def serverinfo(self, context: Context) -> None:
         """
         Get some useful (or not) information about the server.
@@ -152,6 +160,7 @@ class General(commands.Cog, name="general"):
         name="ping",
         description="Check if the bot is alive.",
     )
+    @commands.check(channel_check)
     async def ping(self, context: Context) -> None:
         """
         Check if the bot is alive.
@@ -169,6 +178,7 @@ class General(commands.Cog, name="general"):
         name="invite",
         description="Get the invite link of the bot to be able to invite it.",
     )
+    @commands.check(channel_check)
     async def invite(self, context: Context) -> None:
         """
         Get the invite link of the bot to be able to invite it.
@@ -189,6 +199,7 @@ class General(commands.Cog, name="general"):
         name="server",
         description="Get the invite link of the discord server of the bot for some support.",
     )
+    @commands.check(channel_check)
     async def server(self, context: Context) -> None:
         """
         Get the invite link of the discord server of the bot for some support.
@@ -210,6 +221,7 @@ class General(commands.Cog, name="general"):
         description="Ask any question to the bot.",
     )
     @app_commands.describe(question="The question you want to ask.")
+    @commands.check(channel_check)
     async def eight_ball(self, context: Context, *, question: str) -> None:
         """
         Ask any question to the bot.
@@ -251,6 +263,7 @@ class General(commands.Cog, name="general"):
         name="bitcoin",
         description="Get the current price of bitcoin.",
     )
+    @commands.check(channel_check)
     async def bitcoin(self, context: Context) -> None:
         """
         Get the current price of bitcoin.

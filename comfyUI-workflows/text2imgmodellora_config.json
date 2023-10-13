@@ -1,0 +1,96 @@
+{
+  "23": {
+    "inputs": {
+      "filename_prefix": "final_output",
+      "images": [
+        "25",
+        5
+      ]
+    },
+    "class_type": "SaveImage"
+  },
+  "25": {
+    "inputs": {
+      "sampler_state": "Sample",
+      "seed": 0,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "dpm_adaptive",
+      "scheduler": "normal",
+      "denoise": 1,
+      "preview_method": "auto",
+      "vae_decode": "true",
+      "model": [
+        "59",
+        0
+      ],
+      "positive": [
+        "60",
+        0
+      ],
+      "negative": [
+        "61",
+        0
+      ],
+      "latent_image": [
+        "62",
+        0
+      ],
+      "optional_vae": [
+        "59",
+        2
+      ]
+    },
+    "class_type": "KSampler (Efficient)"
+  },
+  "59": {
+    "inputs": {
+      "ckpt_name": "sdxlUnstableDiffusers_v7ElectricMind.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple"
+  },
+  "60": {
+    "inputs": {
+      "text": "Anime girl, Nvidia",
+      "clip": [
+        "65",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "61": {
+    "inputs": {
+      "text": "text, watermark",
+      "clip": [
+        "65",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "62": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage"
+  },
+  "65": {
+    "inputs": {
+      "lora_name": "CyberpunkSDXL.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "59",
+        0
+      ],
+      "clip": [
+        "59",
+        1
+      ]
+    },
+    "class_type": "LoraLoader"
+  }
+}

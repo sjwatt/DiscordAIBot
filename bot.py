@@ -21,6 +21,13 @@ from dotenv import load_dotenv
 
 from database import DatabaseManager
 
+#global debug flag, must be visible in all cogs, get as command line argument
+debug = False
+for arg in sys.argv:
+    if arg == "--debug":
+        debug = True
+
+
 if not os.path.isfile(f"{os.path.realpath(os.path.dirname(__file__))}/config.json"):
     sys.exit("'config.json' not found! Please add it and try again.")
 else:
@@ -121,6 +128,8 @@ file_handler.setFormatter(file_handler_formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
+#list of valid channel and guild names
+AllowedChannels = ["rectangle-ai"]
 
 class DiscordBot(commands.Bot):
     def __init__(self) -> None:
@@ -140,6 +149,7 @@ class DiscordBot(commands.Bot):
         self.logger = logger
         self.config = config
         self.database = None
+        self.allowed_channels = AllowedChannels
 
     async def init_db(self) -> None:
         async with aiosqlite.connect(
@@ -201,16 +211,28 @@ class DiscordBot(commands.Bot):
                 f"{os.path.realpath(os.path.dirname(__file__))}/database/database.db"
             )
         )
-
+        
+    #check if message is in allowed channel
+    def channel_check(self, ctx):
+        if ctx.guild is None or ctx.channel.name in AllowedChannels:
+            return True
+        return False
+    
+    @commands.check(channel_check)
     async def on_message(self, message: discord.Message) -> None:
         """
         The code in this event is executed every time someone sends a message, with or without the prefix
-
+        Check to see if the message was sent from a valid channel
         :param message: The message that was sent.
         """
+        if debug:
+            self.logger.info(f"Message: {message}")
+        
         if message.author == self.user or message.author.bot:
             return
+        
         await self.process_commands(message)
+        
 
     async def on_command_completion(self, context: Context) -> None:
         """
