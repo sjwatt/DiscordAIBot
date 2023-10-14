@@ -23,6 +23,7 @@ from io import BytesIO
 from PIL import Image
 from PIL import GifImagePlugin
 from PIL import ImageSequence
+import PIL
 import sys
 from datetime import datetime
 from math import ceil, sqrt
@@ -48,6 +49,8 @@ class Buttons(discord.ui.View):
         self.size = size
         self.seed = seed
         self.spoiler = spoiler
+    
+    
     
     #re-roll button
     @discord.ui.button(label='Re-roll', style=discord.ButtonStyle.green, emoji="🎲", row=0)
@@ -92,8 +95,12 @@ class Buttons(discord.ui.View):
         images=None
         if(self.model != None and self.lora != None):
             self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMGMODELLORA",self.model,self.lora,self.size,self.seed)
+        elif(self.model != None):
+            self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMGMODEL",self.model,None,self.size,self.seed)
+        elif(self.lora != None):
+            self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMGLORA",None,self.lora,self.size,self.seed)
         else:
-            return
+            self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMG",size=self.size,seed=self.seed)
         
         
         
@@ -125,7 +132,30 @@ class Buttons(discord.ui.View):
         await reactions.clear_reactions()
         await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}variation.png"), view=self)
         
+    #upscale button
+    @discord.ui.button(label='Upscale', style=discord.ButtonStyle.blurple, emoji="🔍", row=0)
+    async def upscale(self, interaction: discord.Interaction, button: discord.ui.Button):
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        button.disabled = False
+        self.size = str(int(int(self.size) * 1.5))
+        
+        self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_UPSCALE")
+        await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}collage.png"), view=self)
+        
+        return
     
+    #downscale button
+    @discord.ui.button(label='Downscale', style=discord.ButtonStyle.blurple, emoji="🔎", row=0)
+    async def downscale(self, interaction: discord.Interaction, button: discord.ui.Button):
+        button.disabled = True
+        await interaction.response.edit_message(view=self)
+        button.disabled = False
+        self.size = str(int(int(self.size) * .75))
+        for i in range(len(self.images)):
+            self.images[i] = self.images[i].resize((int(self.size), int(self.size)), PIL.Image.LANCZOS)
+        await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}collage.png"), view=self)
+        return
     
     
 #list of reaction emojis (from 1 to 9)
@@ -157,6 +187,8 @@ class Imagine(commands.Cog, name="imagine"):
     def channel_check(ctx):
         if ctx.bot.channel_check(ctx):
             return True
+        elif ctx.guild == None:
+            return True
         return False
     
     @commands.hybrid_command(
@@ -165,7 +197,7 @@ class Imagine(commands.Cog, name="imagine"):
     )
     @app_commands.describe(prompt='Prompt for the image being generated')
     @app_commands.describe(negative_prompt='Prompt for what you want to steer the AI away from')
-    @app_commands.guilds(discord.Object(id=837394309225381939)) # Place your guild ID her
+    #@app_commands.guilds(discord.Object(id=837394309225381939)) # Place your guild ID her
     @app_commands.describe(model='Model to use for generation')
     @app_commands.describe(lora='Lora to use for generation')
     @app_commands.describe(size='Size of the image to generate')
@@ -175,7 +207,7 @@ class Imagine(commands.Cog, name="imagine"):
         app_commands.Choice(name='spoiler', value='SPOILER_'),
                                    ])
     @commands.check(channel_check)
-    async def imaginecommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None,seed: str=None, size: str='1024',spoiler: app_commands.Choice[str]=None) -> None:
+    async def imaginecommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None,seed: str=None, size: str='512',spoiler: app_commands.Choice[str]=None) -> None:
         """
         This command runs the stableDiffusion program and displays an image.
 
@@ -216,7 +248,7 @@ class Imagine(commands.Cog, name="imagine"):
         view=Buttons(self, context, prompt, negative_prompt, images, model, lora,size,seed,spoiler)
         await context.send(file = discord.File(fp=self.create_collage(images), filename=f"{spoiler.value}collage.png"), view=view)
 
-    async def generate_images(self, prompt: str,negative_prompt: str, config_name: str, model: str=None, lora: str=None, size: str=None, seed: int=random.randint(0,999999999999999)):
+    async def generate_images(self, prompt: str,negative_prompt: str, config_name: str, model: str=None, lora: str=None, size: str="512", seed: int=random.randint(0,999999999999999)):
         with open(self.config[config_name]['CONFIG'], 'r') as file:
             workflow = json.load(file)
         
@@ -264,13 +296,17 @@ class Imagine(commands.Cog, name="imagine"):
             for node in size_nodes:
                 workflow[node]["inputs"]["width"] = size
                 workflow[node]["inputs"]["height"] = size
-
+        
         images = await generator.get_images(workflow)
         await generator.close()
 
         return images
     
     async def generate_variations(self, image: Image.Image, prompt: str,negative_prompt: str, config_name: str, model: str=None, lora: str=None, size: str=None, seed: int=random.randint(0,999999999999999)):
+        #if the image is over 512 pixels, downscale it
+        if(image.width > 512 and config_name != "LOCAL_UPSCALE"):
+            image = image.resize((512, 512), PIL.Image.LANCZOS)
+        
         with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as temp_file:
             image.save(temp_file, format="PNG")
             temp_filepath = temp_file.name
@@ -292,10 +328,12 @@ class Imagine(commands.Cog, name="imagine"):
         lora_nodes = [' ']
         try:
             model_nodes = self.config.get(config_name, 'MODEL_NODES').split(',')
+            logger.info("ImageGenerator.generate_variations model_nodes:" + str(model_nodes))
         except:
             pass
         try:
             lora_nodes = self.config.get(config_name, 'LORA_NODES').split(',')
+            logger.info("ImageGenerator.generate_variations lora_nodes:" + str(lora_nodes))
         except:
             pass
         
@@ -318,13 +356,14 @@ class Imagine(commands.Cog, name="imagine"):
             for node in file_input_nodes:
                 logger.info("ImageGenerator.generate_variations filename:" + filename)
                 workflow[node]["inputs"]["image"] = filename
-        
+                
+        logger.info("ImageGenerator.generate_images workflow:" + str(workflow))
         images = await generator.get_images(workflow)
         await generator.close()
         
         return images
-            
-                                  
+    
+    
     def create_collage(self,images):
         num_images = len(images)
         num_cols = ceil(sqrt(num_images))
@@ -397,6 +436,7 @@ class ImageGenerator:
         async for out in self.ws:
             try:
                 message = json.loads(out)
+                logger.info(str(message))
                 if message['type'] == 'execution_start':
                     currently_Executing_Prompt = message['data']['prompt_id']
                 if message['type'] == 'executing' and prompt_id == currently_Executing_Prompt:
@@ -405,7 +445,12 @@ class ImageGenerator:
                         break
             except ValueError as e:
                 #print("Incompatible response from ComfyUI");
-                logger.error("Incompatible response from ComfyUI")
+                #logger.error("Incompatible response from ComfyUI")
+                try:
+                    message=json.loads(out)
+                    logger.info(str(message))
+                except:
+                    pass
                 
         history = get_history(prompt_id,self.config['LOCAL']['SERVER_ADDRESS'])[prompt_id]
         #print("ImageGenerator.get_images history: " + str(history))

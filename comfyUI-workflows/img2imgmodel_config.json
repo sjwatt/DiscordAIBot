@@ -2,7 +2,7 @@
   "25": {
     "inputs": {
       "sampler_state": "Sample",
-      "seed": 1054964266755590,
+      "seed": 498939212961574,
       "steps": 20,
       "cfg": 8,
       "sampler_name": "dpm_adaptive",
@@ -41,13 +41,21 @@
   },
   "60": {
     "inputs": {
-      "text": "Anime girl, Nvidia, medium pose, beautiful\n"
+      "text": "Anime girl, Nvidia, medium pose, beautiful\n",
+      "clip": [
+        "59",
+        1
+      ]
     },
     "class_type": "CLIPTextEncode"
   },
   "61": {
     "inputs": {
-      "text": "text, watermark"
+      "text": "text, watermark",
+      "clip": [
+        "59",
+        1
+      ]
     },
     "class_type": "CLIPTextEncode"
   },
