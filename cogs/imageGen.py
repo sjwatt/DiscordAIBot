@@ -45,6 +45,7 @@ import bleach
 
 logger = logging.getLogger('discord_bot')
 logger.setLevel(logging.INFO)
+liveRequestCount = 0
 
 #Buttons class(based on view)
 class Buttons(discord.ui.View):
@@ -70,8 +71,8 @@ class Buttons(discord.ui.View):
         #check that the user that pressed the button is the same as the user that sent the message
         if(self.context.author != interaction.user):
             return
-        
-        message = f"{self.context.author} asked me to imagine {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}"
+        global liveRequestCount
+        message = f"{self.context.author} asked me to imagine {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}" + f" There are {liveRequestCount} requests in progress"
         if(self.model != None):
             message += f" using model: {self.model}"
         if(self.lora != None):
@@ -114,6 +115,8 @@ class Buttons(discord.ui.View):
         #update the button
         button.disabled = True
         await interaction.response.edit_message(view=self)
+        global liveRequestCount
+        await self.context.send(f"{self.context.author} asked me to imagine variations of {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}"  + f" There are {liveRequestCount} requests in progress")
         #get a new image
         try:
             images=None
@@ -168,6 +171,8 @@ class Buttons(discord.ui.View):
         button.disabled = True
         await interaction.response.edit_message(view=self)
         button.disabled = False
+        global liveRequestCount
+        await self.context.send(f"{self.context.author} asked me to upscale {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}"  + f" There are {liveRequestCount} requests in progress")
         self.size = str(int(int(self.size) * 1.5))
         try:
             self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_UPSCALE")
@@ -330,13 +335,14 @@ Generate images with:
         thisview = discord.ui.View(timeout=None)
         #send the view
         #tell the user what we are doing, optionally include the (negative prompt, model, and lora) if they are not None
-        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {size}{', seed: ' + seed if seed else ''}"
+        global liveRequestCount
+        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {size}{', seed: ' + seed if seed else ''}."
         if(model != None):
             message += f" using model: {model}"
         if(lora != None):
             message += f" using lora: {lora}"
         
-        sent = await context.send(message, view=thisview)
+        sent = await context.send(message + f" There are {liveRequestCount} requests in progress", view=thisview)
         
         #generate seed if not provided
         if(seed == None):
@@ -358,8 +364,7 @@ Generate images with:
             
             view=Buttons(self, context, prompt, negative_prompt, images, model, lora,size,seed,spoiler)
             #delete the message that we sent earlier
-            await sent.delete()
-            await context.send(content=message,file = discord.File(fp=self.create_collage(images), filename=f"{spoiler.value}collage.png"), view=view)
+            await context.send(content=message + f" There are {liveRequestCount} requests in progress",file = discord.File(fp=self.create_collage(images), filename=f"{spoiler.value}collage.png"), view=view)
             #TODO: Change this to an edit instead of a delete and send
         except Exception as e:
             #tell the user that something went wrong
@@ -509,7 +514,8 @@ def queue_prompt(prompt, client_id, server_address):
     p = {"prompt": prompt, "client_id": client_id}
     data = json.dumps(p).encode('utf-8')
     req =  urllib.request.Request("http://{}/prompt".format(server_address), data=data)
-    return json.loads(urllib.request.urlopen(req).read())
+    result = json.loads(urllib.request.urlopen(req).read())
+    return result
 
 def get_image(filename, subfolder, folder_type, server_address):
     #print("get_image filename:" + subfolder + filename)
@@ -551,6 +557,7 @@ class ServerContext:
         self.config = config
         self.server_address = get_server_address(config)
 
+
 class ImageGenerator:
     def __init__(self, config, serverContext):
         self.config = config
@@ -564,6 +571,8 @@ class ImageGenerator:
         self.ws = await websockets.connect(self.uri)
 
     async def get_images(self, prompt):
+        global liveRequestCount
+        liveRequestCount += 1
         if not self.ws:
             await self.connect()
     
@@ -611,7 +620,7 @@ class ImageGenerator:
                         logger.info("ImageGenerator.get_images image data size:" + str(sys.getsizeof(pil_gif)))
                         output_images.append(pil_gif)
 
-
+        liveRequestCount -= 1
         return output_images
 
     async def close(self):

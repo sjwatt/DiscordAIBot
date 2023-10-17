@@ -130,6 +130,7 @@ logger.addHandler(file_handler)
 
 #list of valid channel and guild names
 AllowedChannels = ["rectangle-ai"]
+AllowedServers = [837394309225381939]
 
 class DiscordBot(commands.Bot):
     def __init__(self) -> None:
@@ -214,8 +215,13 @@ class DiscordBot(commands.Bot):
         
     #check if message is in allowed channel
     def channel_check(self, ctx):
-        if ctx.guild is None or ctx.channel.name in AllowedChannels:
+        if ctx.guild is None:
             return True
+        if ctx.guild.id in AllowedServers:
+            if ctx.channel.name in AllowedChannels:
+                return True
+            else:
+                return False
         return False
     
     @commands.check(channel_check)
