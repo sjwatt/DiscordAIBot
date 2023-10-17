@@ -255,7 +255,7 @@ Generate images with:
   - Ex: `negative_prompt="rain"`
 - `model`: Choose a model (list below).
   - Ex: `model="dreamshaper_8"`
-- `lora`: Randomness level (list below).
+- `lora`: Low-Rank Adaptation, this modifies the model (list below).
   - Ex: `lora="CyberpunkSDXL"`
 - `size`: Output size ("short", "medium", "long").
   - Ex: `size="1024"`
