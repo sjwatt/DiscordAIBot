@@ -257,7 +257,7 @@ Generate images with:
   - Ex: `model="dreamshaper_8"`
 - `lora`: Low-Rank Adaptation, this modifies the model (list below).
   - Ex: `lora="CyberpunkSDXL"`
-- `size`: Output size ("short", "medium", "long").
+- `size`: Output size.
   - Ex: `size="1024"`
 - `seed`: For consistent outputs.
   - Ex: `seed=12345`
@@ -270,7 +270,7 @@ Generate images with:
         for model in self.get_model_list():
             message += f"- {model}\n"
         
-        message += f"**LORAs:** *(Dynamic list)*\n"
+        message += f"\n**LORAs:** *(Dynamic list)*\n"
         #add loras with get_lora_list here
         for lora in self.get_lora_list():
             message += f"- {lora}\n"
