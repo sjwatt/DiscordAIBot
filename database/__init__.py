@@ -6,6 +6,26 @@ Description:
 Version: 6.1.0
 """
 
+"""
+The database schema.sql file:
+CREATE TABLE IF NOT EXISTS `warns` (
+  `id` int(11) NOT NULL,
+  `user_id` varchar(20) NOT NULL,
+  `server_id` varchar(20) NOT NULL,
+  `moderator_id` varchar(20) NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+/*Table of last prompt config(not including prompt and negative_prompt text) from each user*/
+CREATE TABLE IF NOT EXISTS `configs` (
+  `id` int(11) NOT NULL,
+  `user_id` varchar(20) NOT NULL,
+  `config` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 
 import aiosqlite
 
@@ -14,6 +34,43 @@ class DatabaseManager:
     def __init__(self, *, connection: aiosqlite.Connection) -> None:
         self.connection = connection
 
+    #store the last used config for the user, the config will be passed in as a python object
+    async def set_config(self, user_id: int, config: dict) -> None:
+        """
+        This function will set the config for a user.
+
+        :param user_id: The ID of the user.
+        :param config: The config of the user.
+        """
+        await self.connection.execute(
+            "INSERT INTO configs(user_id, config) VALUES (?, ?)",
+            (
+                user_id,
+                str(config),
+            ),
+        )
+        await self.connection.commit()
+        
+    #get the last used config for the user, the config will be returned as a python object
+    async def get_config(self, user_id: int) -> dict:
+        """
+        This function will get the config for a user.
+
+        :param user_id: The ID of the user.
+        :return: The config of the user.
+        """
+        rows = await self.connection.execute(
+            "SELECT config FROM configs WHERE user_id=? ORDER BY id DESC LIMIT 1",
+            (
+                user_id,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchone()
+            return eval(result[0]) if result is not None else None
+    
+        
+        
     async def add_warn(
         self, user_id: int, server_id: int, moderator_id: int, reason: str
     ) -> int:
