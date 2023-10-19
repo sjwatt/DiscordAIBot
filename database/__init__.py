@@ -34,10 +34,9 @@ class DatabaseManager:
     def __init__(self, *, connection: aiosqlite.Connection) -> None:
         self.connection = connection
 
-    #store the last used config for the user, the config will be passed in as a python object
-    async def set_config(self, user_id: int, config: dict) -> None:
+    async def store_config(self, user_id: int, config: dict) -> None:
         """
-        This function will set the config for a user.
+        This function will store the config for a user.
 
         :param user_id: The ID of the user.
         :param config: The config of the user.
@@ -52,7 +51,7 @@ class DatabaseManager:
         await self.connection.commit()
         
     #get the last used config for the user, the config will be returned as a python object
-    async def get_config(self, user_id: int) -> dict:
+    async def get_config(self,user_id: int) -> dict:
         """
         This function will get the config for a user.
 
@@ -67,8 +66,7 @@ class DatabaseManager:
         )
         async with rows as cursor:
             result = await cursor.fetchone()
-            return eval(result[0]) if result is not None else None
-    
+            return eval(result[0]) if result is not None else {}
         
         
     async def add_warn(

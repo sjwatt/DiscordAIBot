@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS `warns` (
 
 /*Table of last prompt config(not including prompt and negative_prompt text) from each user*/
 CREATE TABLE IF NOT EXISTS `configs` (
-  `id` int(11) NOT NULL,
+  `id` INTEGER PRIMARY KEY,
   `user_id` varchar(20) NOT NULL,
   `config` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP

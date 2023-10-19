@@ -255,8 +255,6 @@ class Buttons(discord.ui.View):
 #list of reaction emojis (from 1 to 9)
 reaction_emojis = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣']
 
-
-
 # Here we name the cog and create a new class for the cog.
 class Imagine(commands.Cog, name="imagine"):
     def __init__(self, bot) -> None:
@@ -371,25 +369,53 @@ Generate images with:
         app_commands.Choice(name='spoiler', value='SPOILER_'),
                                    ])
     @commands.check(channel_check)
-    async def imaginecommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None,seed: str=None, size: str='512',spoiler: app_commands.Choice[str]=None) -> None:
+    async def imaginecommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None,seed: str=None, size: str=None,spoiler: app_commands.Choice[str]=None) -> None:
         """
         This command runs the stableDiffusion program and displays an image.
 
         :param context: The application command context.
         """
+        #try to load the user's previous config
+        config = await self.bot.database.get_config(context.author.id)
+        
         #sanitize all the inputs using bleach
+        logger.info("config loaded:" + str(config))
         prompt = bleach.clean(prompt)
         if negative_prompt != None:
             negative_prompt = bleach.clean(negative_prompt)
         if model != None:
             model = bleach.clean(model)
+            config['model'] = model
+        elif config != {}:
+            if config.get('model') != None:
+                model = config.get('model')
         if lora != None:
             lora = bleach.clean(lora)
+            config['lora'] = lora
+        elif config != {}:
+            if config.get('lora') != None:
+                lora = config.get('lora')
+        
         if seed != None:
             seed = bleach.clean(seed)
+            if seed == -1:
+                seed = random.randint(0,999999999999999)
+            config['seed'] = seed
+        elif config != {}:
+            if config.get('seed') != None:
+                seed = config.get('seed')
         if size != None:
             size = bleach.clean(size)
+            config['size'] = size
+        elif config != {}:
+            if config.get('size') != None:
+                size = config.get('size')
+        if size == None:
+            size = "512"
         
+        #store the config back to the database
+        print(context.author.id)
+        await self.bot.database.store_config(context.author.id, config)
         
         if spoiler == None:
             spoiler = app_commands.Choice(name='no spoiler', value='')
