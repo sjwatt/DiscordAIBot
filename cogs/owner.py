@@ -10,6 +10,8 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ext.commands import Context
+#import modal stuff
+from discord import ui
 
 
 class Owner(commands.Cog, name="owner"):
@@ -198,6 +200,26 @@ class Owner(commands.Cog, name="owner"):
         :param message: The message that should be repeated by the bot.
         """
         await context.send(message)
+        
+    @commands.hybrid_command(
+        name="broadcast",
+        description="The bot will send a message to all servers, in their allowed channel",
+    )
+    @app_commands.describe(message="The message that should be repeated by the bot")
+    @commands.is_owner()
+    async def broadcast(self, context: Context, *, message: str) -> None:
+        """
+        The bot will send a message to all servers, in their allowed channel.
+
+        :param context: The hybrid command context.
+        :param message: The message that should be repeated by the bot.
+        """
+        for guild in self.bot.guilds:
+            if guild.id in self.bot.allowed_guilds:
+                #for each channel in the guild check if it is in the allowed_channels
+                for channel in guild.channels:
+                    if channel.name in self.bot.allowed_channels:
+                        await channel.send(message)
 
     @commands.hybrid_command(
         name="embed",
@@ -325,7 +347,26 @@ class Owner(commands.Cog, name="owner"):
             text=f"There {'is' if total == 1 else 'are'} now {total} {'user' if total == 1 else 'users'} in the blacklist"
         )
         await context.send(embed=embed)
+        
+    @commands.hybrid_command(
+        name="testmodal",
+        description="Test a modal",
+    )
+    async def testmodal(self, context: Context) -> None:
+        """
+        Test a modal.
 
+        :param context: The hybrid command context.
+        """
+        modal = Questionnaire()
+        await context.interaction.response.send_modal(modal)
+
+class Questionnaire(ui.Modal, title='Questionnaire Response'):
+    name = ui.TextInput(label='Name')
+    answer = ui.TextInput(label='Answer', style=discord.TextStyle.paragraph)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.send_message(f'Thanks for your response, {self.name}!', ephemeral=True)
 
 async def setup(bot) -> None:
     await bot.add_cog(Owner(bot))

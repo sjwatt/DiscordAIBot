@@ -21,6 +21,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord import app_commands
+from discord import ui
 import os
 import json
 import configparser
@@ -46,6 +47,59 @@ import bleach
 logger = logging.getLogger('discord_bot')
 logger.setLevel(logging.INFO)
 liveRequestCount = 0
+
+
+def get_model_list(startpos=0):
+        #get the list of models from the folder "/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/checkpoints"
+        #each model is a file in that folder that ends with ".safetensors". strip the extension off the file name and list the files
+        #get the list of files in the folder
+        model_list = []
+        for filename in os.listdir("/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/checkpoints"):
+            if filename.endswith(".safetensors"):
+                model_list.append(filename[:-12])
+        #limit the list to 25 items starting at startpos
+        model_list = model_list[startpos:]
+        model_list = model_list[:25]
+        return model_list
+    
+def get_lora_list():
+        lora_list = []
+        for filename in os.listdir("/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/loras"):
+            if filename.endswith(".safetensors"):
+                lora_list.append(filename[:-12])
+        return lora_list
+    
+#ImageChooser class(based on modal)
+class ImageChooser(discord.ui.Modal):
+    def __init__(self, context: Context,title="Modal"):
+        super().__init__(timeout=None, title=title)
+        self.context = context
+        self.title = title
+        self.prompt = ui.TextInput(label='Prompt')
+        self.add_item(self.prompt)
+        self.negative_prompt = ui.TextInput(label='Negative Prompt')
+        self.add_item(self.negative_prompt)
+        self.size = ui.TextInput(label='Size')
+        self.add_item(self.size)
+        self.seed = ui.TextInput(label='Seed')
+        self.add_item(self.seed)
+        
+    async def send_modal(self, interaction: discord.Interaction):
+        interaction.response._responded = True
+        super().send_modal(interaction)
+        
+    async def on_submit(self, interaction: discord.Interaction):
+        #ask the user to choose a model
+        model_list = get_model_list(25)
+        lora_list = get_lora_list()
+        #create a select menu for the models
+        model_select = ui.Select(placeholder="Choose a model",options=[discord.SelectOption(label=model,value=model) for model in model_list])
+        #create a select menu for the loras
+        lora_select = ui.Select(placeholder="Choose a lora",options=[discord.SelectOption(label=lora,value=lora) for lora in lora_list])
+        #ask the user to choose a model and loras
+        data = await interaction.response.send_message("Choose a model and lora", view=discord.ui.View(timeout=None).add_item(model_select).add_item(lora_select))
+        
+
 
 #Buttons class(based on view)
 class Buttons(discord.ui.View):
@@ -288,7 +342,17 @@ Generate images with:
         #get the message
         logger.info("on_reaction_add")
     
-    
+    @commands.hybrid_command(
+        name="sd",
+        description="Generate an image with a dialog box",
+    )
+    @commands.check(channel_check)
+    async def sdcommand(self, context: Context) -> None:
+        #show the image generation modal to the user
+        
+        modal = ImageChooser(context)
+        await context.interaction.response.send_modal(modal)
+        
     
     
     @commands.hybrid_command(
@@ -307,7 +371,7 @@ Generate images with:
         app_commands.Choice(name='spoiler', value='SPOILER_'),
                                    ])
     @commands.check(channel_check)
-    async def imaginecommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None,seed: str=None, size: str='1024',spoiler: app_commands.Choice[str]=None) -> None:
+    async def imaginecommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None,seed: str=None, size: str='512',spoiler: app_commands.Choice[str]=None) -> None:
         """
         This command runs the stableDiffusion program and displays an image.
 

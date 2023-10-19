@@ -129,8 +129,8 @@ logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
 #list of valid channel and guild names
-AllowedChannels = ["rectangle-ai"]
-AllowedServers = [837394309225381939]
+AllowedChannels = ["rectangle-ai","ai"]
+AllowedServers = [837394309225381939, 557406747292073984,705988712789573642]
 
 class DiscordBot(commands.Bot):
     def __init__(self) -> None:
@@ -151,6 +151,7 @@ class DiscordBot(commands.Bot):
         self.config = config
         self.database = None
         self.allowed_channels = AllowedChannels
+        self.allowed_guilds = AllowedServers
 
     async def init_db(self) -> None:
         async with aiosqlite.connect(
