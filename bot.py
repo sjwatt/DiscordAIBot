@@ -18,14 +18,11 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import Context
 from dotenv import load_dotenv
+from datetime import datetime
 
 from database import DatabaseManager
 
-#global debug flag, must be visible in all cogs, get as command line argument
-debug = False
-for arg in sys.argv:
-    if arg == "--debug":
-        debug = True
+
 
 
 if not os.path.isfile(f"{os.path.realpath(os.path.dirname(__file__))}/config.json"):
@@ -114,6 +111,11 @@ class LoggingFormatter(logging.Formatter):
 logger = logging.getLogger("discord_bot")
 logger.setLevel(logging.INFO)
 
+#global debug command line argument
+for arg in sys.argv:
+    if arg == "--debug":
+        logger.setLevel(logging.DEBUG)
+        
 # Console handler
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(LoggingFormatter())
@@ -130,7 +132,7 @@ logger.addHandler(file_handler)
 
 #list of valid channel and guild names
 AllowedChannels = ["rectangle-ai","ai"]
-AllowedServers = [837394309225381939, 557406747292073984,705988712789573642]
+AllowedServers = [837394309225381939, 557406747292073984,705988712789573642,1165469125951361144]
 
 class DiscordBot(commands.Bot):
     def __init__(self) -> None:
@@ -232,11 +234,28 @@ class DiscordBot(commands.Bot):
         Check to see if the message was sent from a valid channel
         :param message: The message that was sent.
         """
-        if debug:
-            self.logger.info(f"Message: {message}")
+        
+        self.logger.debug(f"Message: {message}")
         
         if message.author == self.user or message.author.bot:
             return
+        
+        if message.content != "":
+            self.logger.info(f"Readable Message: {message.content}")
+        
+        if message.attachments != []:
+            self.logger.info(f"Attachments: {message.attachments}")
+            #try to retrieve the attachment
+            for attachment in message.attachments:
+                try:
+                    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                    filename = "input/" + str(message.author.id) + timestamp + attachment.filename
+                    await attachment.save(filename)
+                    #store the filename in the database with the user id
+                    await self.database.add_user_file(message.author.id, filename)
+                    
+                except Exception as e:
+                    self.logger.error(f"Failed to save attachment: {e}")
         
         await self.process_commands(message)
         

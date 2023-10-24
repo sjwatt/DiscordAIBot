@@ -148,3 +148,6 @@ discord.log
 
 # Out files
 out/
+
+# Inp files
+input/

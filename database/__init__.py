@@ -7,7 +7,8 @@ Version: 6.1.0
 """
 
 """
-The database schema.sql file:
+database schema.sql file:
+
 CREATE TABLE IF NOT EXISTS `warns` (
   `id` int(11) NOT NULL,
   `user_id` varchar(20) NOT NULL,
@@ -19,8 +20,17 @@ CREATE TABLE IF NOT EXISTS `warns` (
 
 /*Table of last prompt config(not including prompt and negative_prompt text) from each user*/
 CREATE TABLE IF NOT EXISTS `configs` (
-  `id` int(11) NOT NULL,
+  `id` INTEGER PRIMARY KEY,
   `user_id` varchar(20) NOT NULL,
+  `config` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+/*table of saved configs*/
+CREATE TABLE IF NOT EXISTS `saved_configs` (
+  `id` INTEGER PRIMARY KEY,
+  `user_id` varchar(20) NOT NULL,
+  `name` varchar(255) NOT NULL,
   `config` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -33,6 +43,41 @@ import aiosqlite
 class DatabaseManager:
     def __init__(self, *, connection: aiosqlite.Connection) -> None:
         self.connection = connection
+
+    #store a filename with a user_id
+    async def add_user_file(self, user_id: int, filename: str) -> None:
+        """
+        This function will store a filename for a user.
+
+        :param user_id: The ID of the user.
+        :param filename: The filename of the user.
+        """
+        await self.connection.execute(
+            "INSERT OR REPLACE INTO files(user_id, file) VALUES (?, ?)",
+            (
+                user_id,
+                filename,
+            ),
+        )
+        await self.connection.commit()
+        
+    #get most recent filename for user
+    async def get_user_file(self,user_id: int) -> str:
+        """
+        This function will get the filename for a user.
+
+        :param user_id: The ID of the user.
+        :return: The filename of the user.
+        """
+        rows = await self.connection.execute(
+            "SELECT file FROM files WHERE user_id=? LIMIT 1",
+            (
+                user_id,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchone()
+            return result[0] if result is not None else ""
 
     async def store_config(self, user_id: int, config: dict) -> None:
         """
@@ -68,7 +113,81 @@ class DatabaseManager:
             result = await cursor.fetchone()
             return eval(result[0]) if result is not None else {}
         
-        
+    #save current config to slot in database
+    async def save_config(self,user_id: int,name: str,config: dict) -> None:
+        """
+        This function will save the config for a user.
+
+        :param user_id: The ID of the user.
+        :param name: The name of the config.
+        :param config: The config of the user.
+        """
+        await self.connection.execute(
+            "INSERT OR REPLACE INTO saved_configs(user_id,name,config) VALUES (?, ?, ?)",
+            (
+                user_id,
+                name,
+                str(config),
+            ),
+        )
+        await self.connection.commit()
+    
+    #get the saved config for the user, the config will be returned as a python object
+    async def get_saved_config(self,user_id: int,name: str) -> dict:
+        """
+        This function will get the saved config for a user.
+
+        :param user_id: The ID of the user.
+        :param name: The name of the config.
+        :return: The config of the user.
+        """
+        rows = await self.connection.execute(
+            "SELECT config FROM saved_configs WHERE user_id=? AND name=?",
+            (
+                user_id,
+                name,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchone()
+            return eval(result[0]) if result is not None else {}
+    
+    async def get_config_list(self,user_id: int) -> list:
+        """
+        This function will get the config list for a user.
+
+        :param user_id: The ID of the user.
+        :return: The config list of the user.
+        """
+        rows = await self.connection.execute(
+            "SELECT name,config FROM saved_configs WHERE user_id=?",
+            (
+                user_id,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+            result_list = []
+            for row in result:
+                result_list.append(row)
+            return result_list
+    
+    async def delete_config(self,user_id: int,name: str) -> None:
+        """
+        This function will delete the config for a user.
+
+        :param user_id: The ID of the user.
+        :param name: The name of the config.
+        """
+        await self.connection.execute(
+            "DELETE FROM saved_configs WHERE user_id=? AND name=?",
+            (
+                user_id,
+                name,
+            ),
+        )
+        await self.connection.commit()
+    
     async def add_warn(
         self, user_id: int, server_id: int, moderator_id: int, reason: str
     ) -> int:

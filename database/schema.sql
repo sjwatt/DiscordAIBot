@@ -14,3 +14,19 @@ CREATE TABLE IF NOT EXISTS `configs` (
   `config` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+/*table of saved configs*/
+CREATE TABLE IF NOT EXISTS `saved_configs` (
+  `user_id` varchar(20) NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `config` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id,name)
+);
+
+/*table of user files*/
+CREATE TABLE IF NOT EXISTS `files` (
+  `user_id` varchar(20) PRIMARY KEY,
+  `file` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

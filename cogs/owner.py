@@ -54,6 +54,8 @@ class Owner(commands.Cog, name="owner"):
         )
         await context.send(embed=embed)
 
+    
+    
     @commands.command(
         name="unsync",
         description="Unsynchonizes the slash commands.",

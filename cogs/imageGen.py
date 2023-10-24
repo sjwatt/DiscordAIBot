@@ -21,240 +21,34 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Context
 from discord import app_commands
-from discord import ui
-import os
 import json
 import configparser
 import logging
 import uuid
 import websockets
 import random
-import urllib.request
-import urllib.parse
 from io import BytesIO
 from PIL import Image
-from PIL import GifImagePlugin
 from PIL import ImageSequence
 import PIL
 import sys
 from datetime import datetime
 from math import ceil, sqrt
 import tempfile
-import requests
-import asyncio
 import bleach
+from libs.Comfy_interface import get_model_list_long
+from libs.Comfy_interface import get_lora_list_long
+from libs.StandardView import StandardView
+from libs.ImageChooser import ImageChooser
+
+from libs.Comfy_interface import get_history, get_image, queue_prompt, upload_image
+from libs.LiveRequestTracker import LiveRequestTracker
+from libs.UserConfig import UserConfig
 
 logger = logging.getLogger('discord_bot')
 logger.setLevel(logging.INFO)
-liveRequestCount = 0
 
-
-def get_model_list(startpos=0):
-        #get the list of models from the folder "/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/checkpoints"
-        #each model is a file in that folder that ends with ".safetensors". strip the extension off the file name and list the files
-        #get the list of files in the folder
-        model_list = []
-        for filename in os.listdir("/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/checkpoints"):
-            if filename.endswith(".safetensors"):
-                model_list.append(filename[:-12])
-        #limit the list to 25 items starting at startpos
-        model_list = model_list[startpos:]
-        model_list = model_list[:25]
-        return model_list
-    
-def get_lora_list():
-        lora_list = []
-        for filename in os.listdir("/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/loras"):
-            if filename.endswith(".safetensors"):
-                lora_list.append(filename[:-12])
-        return lora_list
-    
-#ImageChooser class(based on modal)
-class ImageChooser(discord.ui.Modal):
-    def __init__(self, context: Context,title="Modal"):
-        super().__init__(timeout=None, title=title)
-        self.context = context
-        self.title = title
-        self.prompt = ui.TextInput(label='Prompt')
-        self.add_item(self.prompt)
-        self.negative_prompt = ui.TextInput(label='Negative Prompt')
-        self.add_item(self.negative_prompt)
-        self.size = ui.TextInput(label='Size')
-        self.add_item(self.size)
-        self.seed = ui.TextInput(label='Seed')
-        self.add_item(self.seed)
-        
-    async def send_modal(self, interaction: discord.Interaction):
-        interaction.response._responded = True
-        super().send_modal(interaction)
-        
-    async def on_submit(self, interaction: discord.Interaction):
-        #ask the user to choose a model
-        model_list = get_model_list(25)
-        lora_list = get_lora_list()
-        #create a select menu for the models
-        model_select = ui.Select(placeholder="Choose a model",options=[discord.SelectOption(label=model,value=model) for model in model_list])
-        #create a select menu for the loras
-        lora_select = ui.Select(placeholder="Choose a lora",options=[discord.SelectOption(label=lora,value=lora) for lora in lora_list])
-        #ask the user to choose a model and loras
-        data = await interaction.response.send_message("Choose a model and lora", view=discord.ui.View(timeout=None).add_item(model_select).add_item(lora_select))
-        
-
-
-#Buttons class(based on view)
-class Buttons(discord.ui.View):
-    def __init__(self, parent, context: Context, prompt, negative_prompt, images, model, lora,size,seed,spoiler, *, timeout=180):
-        super().__init__(timeout=timeout)
-        self.prompt = prompt
-        self.negative_prompt = negative_prompt
-        self.images = images
-        self.model = model
-        self.lora = lora
-        self.context = context
-        self.parent = parent
-        self.timeout = timeout
-        self.size = size
-        self.seed = seed
-        self.spoiler = spoiler
-    
-    
-    
-    #re-roll button
-    @discord.ui.button(label='Re-roll', style=discord.ButtonStyle.green, emoji="🎲", row=0)
-    async def reroll(self, interaction: discord.Interaction, button: discord.ui.Button):
-        #check that the user that pressed the button is the same as the user that sent the message
-        if(self.context.author != interaction.user):
-            return
-        global liveRequestCount
-        message = f"{self.context.author} asked me to imagine {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}" + f" There are {liveRequestCount} requests in progress"
-        if(self.model != None):
-            message += f" using model: {self.model}"
-        if(self.lora != None):
-            message += f" using lora: {self.lora}"
-        await self.context.send(message)
-
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
-        
-        #update the button
-        
-        button.disabled = False
-        
-        #re-randomize the seed
-        self.seed = random.randint(0,999999999999999)
-        
-        try:
-            images=None
-            if(self.model != None and self.lora != None):
-                images = await self.parent.generate_images(self.prompt,self.negative_prompt,"LOCAL_TEXT2IMGMODELLORA",self.model,self.lora,self.size,self.seed)
-            elif(self.model != None):
-                images = await self.parent.generate_images(self.prompt,self.negative_prompt,"LOCAL_TEXT2IMGMODEL",self.model,None,self.size,self.seed)
-            elif(self.lora != None):
-                images = await self.parent.generate_images(self.prompt,self.negative_prompt,"LOCAL_TEXT2IMGLORA",None,self.lora,self.size,self.seed)
-            else:
-                images = await self.parent.generate_images(self.prompt,self.negative_prompt,"LOCAL_TEXT2IMG",size=self.size,seed=self.seed)
-            self.images = images
-            await self.context.send(file = discord.File(fp=self.parent.create_collage(images), filename=f"{self.spoiler.value}collage.png"), view=self)
-        except Exception as e:
-            #tell the user that something went wrong
-            await self.context.send(f"Something went wrong: {e}")
-            
-        
-    #variation button
-    @discord.ui.button(label='Variation', style=discord.ButtonStyle.blurple, emoji="🔀", row=0)
-    async def variation(self, interaction: discord.Interaction, button: discord.ui.Button):
-        #check that the user that pressed the button is the same as the user that sent the message
-        if(self.context.author != interaction.user):
-            return
-        #update the button
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
-        global liveRequestCount
-        await self.context.send(f"{self.context.author} asked me to imagine variations of {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}"  + f" There are {liveRequestCount} requests in progress")
-        #get a new image
-        try:
-            images=None
-            if(self.model != None and self.lora != None):
-                self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMGMODELLORA",self.model,self.lora,self.size,self.seed)
-            elif(self.model != None):
-                self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMGMODEL",self.model,None,self.size,self.seed)
-            elif(self.lora != None):
-                self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMGLORA",None,self.lora,self.size,self.seed)
-            else:
-                self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_IMG2IMG",size=self.size,seed=self.seed)
-        except Exception as e:
-            #tell the user that something went wrong
-            await self.context.send(f"Something went wrong: {e}")
-            return
-        
-        
-        reactions = await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}collage.png"), view=self)
-        #add number reactions
-        #example: await reactions.add_reaction('1️⃣')
-        #build list of reaction emojis
-        reactios_to_add = []
-        for i in range(len(self.images)):
-            reactios_to_add.append(reaction_emojis[i])
-         #send the reactions'
-        await asyncio.gather(*[reactions.add_reaction(emoji) for emoji in reactios_to_add])
-        
-        
-        #this section should be moved to its own handler
-        #wait for reaction
-        reaction = await self.context.bot.wait_for("reaction_add", check=lambda reaction, user: user == self.context.author and reaction.message.id == reactions.id and str(reaction.emoji) in reaction_emojis, timeout=self.timeout)
-        #send the image corresponding to the reaction
-        button.disabled = False
-        #await self.context.send(file = discord.File(fp=self.images[reaction_emojis.index(str(reaction[0]))], filename=f"{self.spoiler.value}variation.png"), view=self)
-        #acknolwedge the reaction
-        await self.context.send(f"{self.context.author} chose {reaction[0]}")
-        #get the index of the reaction from reaction_emojis
-        index = reaction_emojis.index(str(reaction[0]))
-        #send the image
-        #clear all but the selected image
-        self.images = [self.images[index]]
-        #clear the reactions
-        await reactions.clear_reactions()
-        await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}variation.png"), view=self)
-        
-    #upscale button
-    @discord.ui.button(label='Upscale', style=discord.ButtonStyle.blurple, emoji="🔍", row=0)
-    async def upscale(self, interaction: discord.Interaction, button: discord.ui.Button):
-        #check that the user that pressed the button is the same as the user that sent the message
-        if(self.context.author != interaction.user):
-            return
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
-        button.disabled = False
-        global liveRequestCount
-        await self.context.send(f"{self.context.author} asked me to upscale {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}"  + f" There are {liveRequestCount} requests in progress")
-        self.size = str(int(int(self.size) * 1.5))
-        try:
-            self.images = await self.parent.generate_variations(self.images[0],self.prompt,self.negative_prompt,"LOCAL_UPSCALE")
-            await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}collage.png"), view=self)
-        except Exception as e:
-            #tell the user that something went wrong
-            await self.context.send(f"Something went wrong: {e}")
-        return
-    
-    #downscale button
-    @discord.ui.button(label='Downscale', style=discord.ButtonStyle.blurple, emoji="🔎", row=0)
-    async def downscale(self, interaction: discord.Interaction, button: discord.ui.Button):
-        #check that the user that pressed the button is the same as the user that sent the message
-        if(self.context.author != interaction.user):
-            return
-        button.disabled = True
-        await interaction.response.edit_message(view=self)
-        button.disabled = False
-        self.size = str(int(int(self.size) * .75))
-        for i in range(len(self.images)):
-            self.images[i] = self.images[i].resize((int(self.size), int(self.size)), PIL.Image.LANCZOS)
-        await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}collage.png"), view=self)
-        return
-    
-    
-#list of reaction emojis (from 1 to 9)
-reaction_emojis = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣']
-
+requests = LiveRequestTracker()
 # Here we name the cog and create a new class for the cog.
 class Imagine(commands.Cog, name="imagine"):
     def __init__(self, bot) -> None:
@@ -274,26 +68,7 @@ class Imagine(commands.Cog, name="imagine"):
             return True
         return False
     
-    def get_model_list(self):
-        #get the list of models from the folder "/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/checkpoints"
-        #each model is a file in that folder that ends with ".safetensors". strip the extension off the file name and list the files
-        #get the list of files in the folder
-        model_list = []
-        for filename in os.listdir("/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/checkpoints"):
-            if filename.endswith(".safetensors"):
-                model_list.append(filename[:-12])
-        return model_list
     
-    def get_lora_list(self):
-        #get the list of models from the folder "/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/lora"
-        #each model is a file in that folder that ends with ".safetensors". strip the extension off the file name and list the files
-        #get the list of files in the folder
-        lora_list = []
-        for filename in os.listdir("/media/llm/62717d96-7640-4917-bbdf-12e5ee74fd65/home/llm/comfy/ComfyUI/models/loras"):
-            if filename.endswith(".safetensors"):
-                lora_list.append(filename[:-12])
-        return lora_list
-
     # Here you can just add your own commands, you'll always need to provide "self" as first parameter.
     
     @commands.hybrid_command(
@@ -302,14 +77,25 @@ class Imagine(commands.Cog, name="imagine"):
     )
     @commands.check(channel_check)
     async def helpcommand(self, context: Context):
+        model_list = ""
+        #add models with get_model_list here
+        for model in get_model_list_long():
+            model_list += f"- {model}\n"
+        lora_list = ""
+        #add loras with get_lora_list here
+        for lora in get_lora_list_long():
+            lora_list += f"- {lora}\n"
         #help command goes here
         message = f"""**StableDiffusion Bot Help**
 **Command:** `/imagine`
 Generate images with:
 - `/imagine prompt="Your text here"`
+
 **Optional:**
 - `negative_prompt`: Avoid certain themes.
   - Ex: `negative_prompt="rain"`
+  
+  (Config Settings like model and lora are saved between commands)
 - `model`: Choose a model (list below).
   - Ex: `model="dreamshaper_8"`
 - `lora`: Low-Rank Adaptation, this modifies the model (list below).
@@ -321,24 +107,39 @@ Generate images with:
 - `spoiler`: Wrap output in a spoiler tag.
   - Ex: `spoiler=spoiler`
   
+
+**Config saving and loading:**
+- `/defaultconfig`: Load the default config.
+- `/saveconfig slot="Slot name"`: Save your current config to a slot.
+    - Ex: `/saveconfig slot="My config"`
+- `/loadconfig slot="Slot name"`: Load a saved config from a slot.
+    - Ex: `/loadconfig slot="My config"`
+- `/listconfigs`: List your saved configs.
+- `/deleteconfig slot="Slot name"`: Delete a saved config.
+    - Ex: `/deleteconfig slot="My config"`
+
+
 **Models:** *(Dynamic list)*
-"""
-        #add models with get_model_list here
-        for model in self.get_model_list():
-            message += f"- {model}\n"
+{model_list}
+**LORAs:** *(Dynamic list)*
+{lora_list}"""
         
-        message += f"\n**LORAs:** *(Dynamic list)*\n"
-        #add loras with get_lora_list here
-        for lora in self.get_lora_list():
-            message += f"- {lora}\n"
         
-        await context.send(message)
+        #split the message into chunks of 2000 characters, preserving whole lines
+        message_chunks = []
+        while len(message) > 0:
+            message_chunks.append(message[:2000])
+            message = message[2000:]
+        #send the message chunks
+        for message in message_chunks:
+            await context.send(message)
     
     #reaction handler
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
         #get the message
-        logger.info("on_reaction_add")
+        logger.debug("on_reaction_add")
+        logger.debug(reaction.message)
     
     @commands.hybrid_command(
         name="sd",
@@ -351,15 +152,146 @@ Generate images with:
         modal = ImageChooser(context)
         await context.interaction.response.send_modal(modal)
         
+    @commands.hybrid_command(
+        name="saveconfig",
+        description="Save your current config",
+    )
+    @app_commands.describe(slot="Slot to save your config to")
+    @commands.check(channel_check)
+    async def saveconfigcommand(self, context: Context, slot: str) -> None:
+        conf = UserConfig(self.bot,context.author.id)
+        try:
+            await conf.loadconfig()
+            await conf.saveToSlot(slot)
+            await context.send(f"Saved config to slot: {slot}\n{conf}\nUse /listconfigs to see saved configs.", ephemeral=True)
+        except Exception as e:
+            await context.send(f"Something went wrong: {e}", ephemeral=True)
+        
+    @commands.hybrid_command(
+        name="loadconfig",
+        description="Load a saved config",
+    )
+    @app_commands.describe(slot="Slot to load your config from")
+    @commands.check(channel_check)
+    async def loadconfigcommand(self, context: Context, slot: str) -> None:
+        conf = UserConfig(self.bot,context.author.id)
+        try:
+            await conf.loadFromSlot(slot)
+            await context.send(f"Loaded config from slot: {slot}\n{conf}", ephemeral=True)
+        except Exception as e:
+            await context.send(f"Something went wrong: {e}.\n Use /listconfigs to see saved configs.", ephemeral=True)
+        
+    @commands.hybrid_command(
+        name="defaultconfig",
+        description="Load the default config",
+    )
+    @commands.check(channel_check)
+    async def defaultconfigcommand(self, context: Context) -> None:
+        try:
+            conf = UserConfig(self.bot,context.author.id)
+            await conf.default()
+            #tell the user that we're loading the default config
+            await context.send(f"Default config loaded, last config saved to \"last\" slot. Use /listconfigs to see saved configs.", ephemeral=True)
+        except Exception as e:
+            #tell the user that something went wrong
+            await context.send(f"Something went wrong: {e}", ephemeral=True)
+    @commands.hybrid_command(
+        name="listconfigs",
+        description="List your saved configs",
+    )
+    @commands.check(channel_check)
+    async def listconfigscommand(self, context: Context) -> None:
+        try:
+            conf = UserConfig(self.bot,context.author.id)
+            message = await conf.listSlots()
+            await context.send(f"Saved configs:\nUse /loadconfig to load or /saveconfig to save.\nUse /defaultconfig to reset to default(your current config will be saved.)\n" + message, ephemeral=True)
+        except Exception as e:
+            #tell the user that something went wrong
+            await context.send(f"Something went wrong: {e}", ephemeral=True)
+        
+    #delete config command
+    @commands.hybrid_command(
+        name="deleteconfig",
+        description="Delete a saved config",
+    )
+    @app_commands.describe(slot="Slot to delete your config from")
+    @commands.check(channel_check)
+    async def deleteconfigcommand(self, context: Context, slot: str) -> None:
+        #sanitize the name input
+        slot = bleach.clean(slot)
+        #delete the config (slot) from the database
+        try:
+            await self.bot.database.delete_config(context.author.id, slot)
+            #tell the user that we deleted the config
+            await context.send(f"Deleted config from slot: {slot}", ephemeral=True)
+        except Exception as e:
+            #tell the user that something went wrong
+            await context.send(f"Something went wrong: {e}", ephemeral=True)
+        
+    @commands.hybrid_command(
+        name="upload",
+        description="Process an uploaded image",
+    )
+    @commands.check(channel_check)
+    @app_commands.describe(prompt='Prompt to use for image processing')
+    @app_commands.describe(negative_prompt='Negative prompt to use for image processing')
+    async def uploadcommand(self, context: Context, image: discord.Attachment, prompt:str="", negative_prompt:str="") -> None:
+        #convert the image to a PIL image
+        imagefile = Image.open(BytesIO(await image.read()))
+        #load the user's config from the database
+        conf = UserConfig(self.bot,context.author.id)
+        await conf.loadconfig()
+        #set the config values to the inputs
+        await conf.set('prompt',prompt)
+        await conf.set('negative_prompt',negative_prompt)
+        
+        view=StandardView(self, context, conf.get('prompt'), conf.get('negative_prompt'), [imagefile], conf.get('model'), conf.get('lora'),512,random.randint(0,999999999999999),app_commands.Choice(name='no spoiler', value=''),requests)
+        await context.send(file = discord.File(fp=self.create_collage([imagefile]), filename=f"collage.png"), view=view)
+        
+    #imagineanimation command, this is the animation generation command
+    @commands.hybrid_command(
+        name="imagineanimation",
+        description="Generate an animation",
+    )
+    @app_commands.describe(prompt='Prompt for the animation being generated')
+    @app_commands.describe(negative_prompt='Prompt for what you want to steer the AI away from')
+    @app_commands.describe(model='Model to use for generation')
+    @app_commands.describe(lora='Lora to use for generation')
+    @commands.check(channel_check)
+    async def imagineanimationcommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None) -> None:
+        #get the user's config from the database
+        config = await self.bot.database.get_config(context.author.id)
+        #sanitize the inputs
+        prompt = bleach.clean(prompt)
+        if negative_prompt != None:
+            negative_prompt = bleach.clean(negative_prompt)
+        if model != None:
+            model = bleach.clean(model)
+            config['model'] = model
+        if lora != None:
+            lora = bleach.clean(lora)
+            config['lora'] = lora
+        #store the config back to the database
+        await self.bot.database.store_config(context.author.id, config)
+        
+        #store the config back to the database
+        await self.bot.database.store_config(context.author.id, config)
+        #tell the user that we are generating the animation
+        
+        await context.send(f"{context.author} asked me to imagine an animation of {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using model: {config['model']} using lora: {config['lora']} There are {requests.get()} requests in progress")
+        #generate the animation
+        gif = await self.generate_animation(config_name="LOCAL_TEXT2ANIMATION",prompt=prompt,negative_prompt=negative_prompt,model=config['model'],lora=config['lora'])
+        #send the animation(no buttons)
+        await context.send(file = discord.File(fp=self.create_gif(gif), filename=f"animation.gif"))
+        return
     
-    
+    #imagine command, this is the main image generation command
     @commands.hybrid_command(
         name="imagine",
-        description="This is a testing command that does nothing.",
+        description="Generate an image",
     )
     @app_commands.describe(prompt='Prompt for the image being generated')
     @app_commands.describe(negative_prompt='Prompt for what you want to steer the AI away from')
-    #@app_commands.guilds(discord.Object(id=837394309225381939)) # Place your guild ID her
     @app_commands.describe(model='Model to use for generation')
     @app_commands.describe(lora='Lora to use for generation')
     @app_commands.describe(size='Size of the image to generate')
@@ -383,78 +315,60 @@ Generate images with:
         prompt = bleach.clean(prompt)
         if negative_prompt != None:
             negative_prompt = bleach.clean(negative_prompt)
-        if model != None:
-            model = bleach.clean(model)
-            config['model'] = model
-        elif config != {}:
-            if config.get('model') != None:
-                model = config.get('model')
-        if lora != None:
-            lora = bleach.clean(lora)
-            config['lora'] = lora
-        elif config != {}:
-            if config.get('lora') != None:
-                lora = config.get('lora')
-        
-        if seed != None:
-            seed = bleach.clean(seed)
-            if seed == -1:
-                seed = random.randint(0,999999999999999)
-            config['seed'] = seed
-        elif config != {}:
-            if config.get('seed') != None:
-                seed = config.get('seed')
-        if size != None:
-            size = bleach.clean(size)
-            config['size'] = size
-        elif config != {}:
-            if config.get('size') != None:
-                size = config.get('size')
-        if size == None:
-            size = "512"
-        
-        #store the config back to the database
-        print(context.author.id)
-        await self.bot.database.store_config(context.author.id, config)
-        
         if spoiler == None:
             spoiler = app_commands.Choice(name='no spoiler', value='')
         self.spolier = spoiler
-        # Do your stuff here
-        #create a view
-        thisview = discord.ui.View(timeout=None)
-        #send the view
-        #tell the user what we are doing, optionally include the (negative prompt, model, and lora) if they are not None
-        global liveRequestCount
-        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {size}{', seed: ' + seed if seed else ''}."
-        if(model != None):
-            message += f" using model: {model}"
-        if(lora != None):
-            message += f" using lora: {lora}"
         
-        sent = await context.send(message + f" There are {liveRequestCount} requests in progress", view=thisview)
+        #handle config using new config system
+        #load the user's config from the database
+        conf = UserConfig(self.bot,context.author.id)
+        await conf.loadconfig()
+        #set the config values to the inputs
+        await conf.set('model',model)
+        await conf.set('lora',lora)
         
-        #generate seed if not provided
-        if(seed == None):
-            seed = random.randint(0,999999999999999)
+        #check to see if the user has a seed set, if not, generate one but dont set it to the config
+        if seed == None:
+            userSeed = conf.get('seed')
+            if userSeed == "":
+                seed = random.randint(0,999999999999999)
+            else:
+                seed = userSeed
+        else:
+            seed = bleach.clean(seed)
+            await conf.set('seed',seed)
             
+        
+        #default size to 1024
+        if size == None:
+            size = "1024"
+        await conf.set('size',size)
+        thisview = discord.ui.View(timeout=None)
+        
+        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {conf.get('size')}{', seed: ' + seed if seed else ''}."
+        if(conf.get('model') != ""):
+            message += f" using model: {conf.get('model')}"
+        if(conf.get('lora') != ""):
+            message += f" using lora: {conf.get('lora')}"
+        
+        sent = await context.send(message + f" There are {requests.get()} requests in progress", view=thisview)
         
         try:
             if(int(size) > 4000):
                 throw("Size too large")
             images=None
-            if(model != None and lora != None):
-                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGMODELLORA",model,lora,size,seed)
-            elif(model != None):
-                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGMODEL",model,None,size,seed)
-            elif(lora != None):
-                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGLORA",None,lora,size,seed)
+            if(conf.get('model') != "" and conf.get('lora') != ""):
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGMODELLORA",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
+            elif(conf.get('model') != ""):
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGMODEL",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
+            elif(conf.get('lora') != ""):
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGLORA",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
             else:
-                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMG",size=size,seed=seed)
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMG",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
             
-            view=Buttons(self, context, prompt, negative_prompt, images, model, lora,size,seed,spoiler)
+            view=StandardView(self, context, prompt, negative_prompt, images, conf.get('model'),conf.get('lora'),conf.get('size'),seed,spoiler,requests)
             #delete the message that we sent earlier
-            await context.send(content=message + f" There are {liveRequestCount} requests in progress",file = discord.File(fp=self.create_collage(images), filename=f"{spoiler.value}collage.png"), view=view)
+            await context.send(content=message + f" There are {requests.get()} requests in progress",file = discord.File(fp=self.create_collage(images), filename=f"{spoiler.value}collage.png"), view=view)
             #TODO: Change this to an edit instead of a delete and send
         except Exception as e:
             #tell the user that something went wrong
@@ -514,6 +428,43 @@ Generate images with:
         await generator.close()
 
         return images
+    
+    async def generate_animation(self,config_name: str, prompt: str,negative_prompt: str, model: str=None, lora: str=None, size: str="512", seed: int=random.randint(0,999999999999999)):
+        with open(self.config[config_name]['CONFIG'], 'r') as file:
+            workflow = json.load(file)
+        serverContext = ServerContext(self.config)
+        
+        generator = ImageGenerator(self.config,serverContext)
+        await generator.connect()
+        
+        prompt_nodes = self.config.get(config_name, 'PROMPT_NODES').split(',')
+        neg_prompt_nodes = self.config.get(config_name, 'NEG_PROMPT_NODES').split(',')
+        rand_seed_nodes = self.config.get(config_name, 'RAND_SEED_NODES').split(',')
+        model_nodes = self.config.get(config_name, 'MODEL_NODES').split(',')
+        lora_nodes = self.config.get(config_name, 'LORA_NODES').split(',')
+        
+        if(prompt != None and prompt_nodes[0] != ''):
+            for node in prompt_nodes:
+                workflow[node]["inputs"]["text"] = prompt
+        if(negative_prompt != None and neg_prompt_nodes[0] != ''):
+            for node in neg_prompt_nodes:
+                workflow[node]["inputs"]["text"] = negative_prompt
+        if(rand_seed_nodes[0] != ''):
+            for node in rand_seed_nodes:
+                workflow[node]["inputs"]["seed"] = seed
+        if(model_nodes[0] != ' '):
+            for node in model_nodes:
+                workflow[node]["inputs"]["ckpt_name"] = model + ".safetensors"
+        if(lora_nodes[0] != ' '):
+            for node in lora_nodes:
+                workflow[node]["inputs"]["lora_name"] = lora + ".safetensors"
+        
+        logger.info("ImageGenerator.generate_animation workflow:" + str(workflow))
+        images = await generator.get_images(workflow)
+        await generator.close()
+
+        return images
+        
     
     async def generate_variations(self, image: Image.Image, prompt: str,negative_prompt: str, config_name: str, model: str=None, lora: str=None, size: str=None, seed: int=random.randint(0,999999999999999)):
         #if the image is over 512 pixels, downscale it
@@ -599,37 +550,19 @@ Generate images with:
         collage.save(collage_path)
 
         return collage_path
-
-def queue_prompt(prompt, client_id, server_address):
-    p = {"prompt": prompt, "client_id": client_id}
-    data = json.dumps(p).encode('utf-8')
-    req =  urllib.request.Request("http://{}/prompt".format(server_address), data=data)
-    result = json.loads(urllib.request.urlopen(req).read())
-    return result
-
-def get_image(filename, subfolder, folder_type, server_address):
-    #print("get_image filename:" + subfolder + filename)
-    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
-    url_values = urllib.parse.urlencode(data)
-    with urllib.request.urlopen("http://{}/view?{}".format(server_address, url_values)) as response:
-        return response.read()
-
-def get_history(prompt_id, server_address):
-    with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
-        return json.loads(response.read())
     
-def upload_image(filepath,server_address, subfolder=None, folder_type=None, overwrite=False):
-    url = f"http://{server_address}/upload/image"
-    files = {'image': open(filepath, 'rb')}
-    data = {
-        'overwrite': str(overwrite).lower()
-    }
-    if subfolder:
-        data['subfolder'] = subfolder
-    if folder_type:
-        data['type'] = folder_type
-    response = requests.post(url, files=files, data=data)
-    return response.json()
+    def create_gif(self,gif_images):
+        gif_image = gif_images[0]
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        filename = f"./out/images_{timestamp}.gif"
+        
+        #ChatGPT wrote this
+        if getattr(gif_image, "is_animated", False):
+            frames = [frame.copy() for frame in ImageSequence.Iterator(gif_image)]
+            frames[0].save(filename, save_all=True, append_images=frames[1:], loop=0, duration=gif_image.info['duration'])
+        else:
+            gif_image.save(filename, 'GIF')
+        return filename
 
 #get the server address from the config file, round robin sequentially the addresses
 currentServer = 0
@@ -661,8 +594,7 @@ class ImageGenerator:
         self.ws = await websockets.connect(self.uri)
 
     async def get_images(self, prompt):
-        global liveRequestCount
-        liveRequestCount += 1
+        requests.increment()
         if not self.ws:
             await self.connect()
     
@@ -703,14 +635,14 @@ class ImageGenerator:
 
             if 'gifs' in node_output:
                 for gif in node_output['gifs']:
-                    gif_data = get_image(gif['filename'], gif['subfolder'], gif['type'])
+                    gif_data = get_image(gif['filename'], gif['subfolder'], gif['type'], self.serverContext.server_address)
                     if 'final_output' in gif['filename']:
                         pil_gif = Image.open(BytesIO(gif_data))
                         
                         logger.info("ImageGenerator.get_images image data size:" + str(sys.getsizeof(pil_gif)))
                         output_images.append(pil_gif)
 
-        liveRequestCount -= 1
+        requests.decrement()
         return output_images
 
     async def close(self):
