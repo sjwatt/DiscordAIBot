@@ -47,7 +47,7 @@ class StandardView(discord.ui.View):
         self.prompt = prompt
         self.negative_prompt = negative_prompt
         self.images = images
-
+        print(self.prompt)
         self.old_images = {}
         self.model = model
         self.lora = lora
@@ -112,10 +112,6 @@ class StandardView(discord.ui.View):
         #update the button
         button.disabled = True
         await interaction.response.edit_message(view=self)
-        #check to see if the prompt has changed
-        config = await self.context.bot.database.get_config(self.context.author.id)
-        if config.get('prompt') != self.prompt:
-            self.prompt = config.get('prompt')
         await self.context.send(f"{self.context.author} asked me to imagine variations of {self.prompt}{' with negative prompt: ' + self.negative_prompt if self.negative_prompt else ''} using size: {self.size}"  + f" There are {self.requests.get()} requests in progress")
         #get a new image
         if self.model == "":
