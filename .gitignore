@@ -151,3 +151,7 @@ out/
 
 # Inp files
 input/
+
+#temp files
+history
+history_2

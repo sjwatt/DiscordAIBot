@@ -32,6 +32,7 @@ from PIL import Image
 from PIL import ImageSequence
 import PIL
 import sys
+import os
 from datetime import datetime
 from math import ceil, sqrt
 import tempfile
@@ -374,6 +375,124 @@ Generate images with:
             #tell the user that something went wrong
             await context.send(f"Something went wrong: {e}")
 
+        
+    # Scan the directory for model files and extract model names
+    def get_choices_from_directory(directory):
+        model_files = [f for f in os.listdir(directory) if f.endswith('.safetensors')]  # Limit to first 25
+        model_names = [os.path.splitext(f)[0] for f in model_files]
+        return [app_commands.Choice(name=model_name, value=i) for i, model_name in enumerate(model_names)]
+        
+    # Dynamically get model choices from the specified directories
+    directory = os.path.dirname(os.path.realpath(__file__))
+    directory = os.path.dirname(os.path.dirname(directory))
+    model_choices = get_choices_from_directory(directory + "/comfy/ComfyUI/models/checkpoints")
+    remove_models = ["dreamshaper_7","v1-5-pruned-emaonly","chilloutmix_NiPrunedFp32Fix","768-v-ema","colossusProjectXLSFW_v202BakedVAE","anything-v3-fp16-pruned","epicrealism_naturalSinRC1VAE"]
+    #remove the models in remove_models from the list of model_choices
+    for model in remove_models:
+        for choice in model_choices:
+            if choice.name == model:
+                model_choices.remove(choice)
+    #sort the model_choices
+    model_choices.sort(key=lambda x: x.name)
+    #trim the model_choices to 25
+    model_choices = model_choices[:25]
+    
+    lora_choices = get_choices_from_directory(directory + "/comfy/ComfyUI/models/loras") 
+    #sort the lora_choices alphabetically
+    lora_choices.sort(key=lambda x: x.name)
+    
+    
+    
+    @commands.hybrid_command(
+        name="img",
+        description="Generate an image, dropdown mode",
+    )
+    @app_commands.describe(prompt='Prompt for the image being generated')
+    @app_commands.describe(negative_prompt='Prompt for what you want to steer the AI away from')
+    @app_commands.choices(model=model_choices)
+    @app_commands.choices(lora=lora_choices)
+    @app_commands.describe(size='Size of the image to generate')
+    @app_commands.describe(seed='Seed for the random number generator')
+    @app_commands.choices(spoiler=[
+        app_commands.Choice(name='no spoiler', value=''),
+        app_commands.Choice(name='spoiler', value='SPOILER_'),
+                                   ])
+    @commands.check(channel_check)
+    async def imgcommand(self, context: Context, prompt: str, negative_prompt: str=None, model: app_commands.Choice[int]=None, lora: app_commands.Choice[int]=None,seed: str=None, size: str=None,spoiler: app_commands.Choice[str]=None) -> None:
+        context.defer()
+        """
+        This command runs the stableDiffusion program and displays an image.
+
+        :param context: The application command context.
+        """
+        #try to load the user's previous config
+        config = await self.bot.database.get_config(context.author.id)
+        
+        #sanitize all the inputs using bleach
+        logger.info("config loaded:" + str(config))
+        prompt = bleach.clean(prompt)
+        if negative_prompt != None:
+            negative_prompt = bleach.clean(negative_prompt)
+        if spoiler == None:
+            spoiler = app_commands.Choice(name='no spoiler', value='')
+        self.spolier = spoiler
+        
+        #handle config using new config system
+        #load the user's config from the database
+        conf = UserConfig(self.bot,context.author.id)
+        await conf.loadconfig()
+        #set the config values to the inputs
+        await conf.set('model',model.name)
+        await conf.set('lora',lora.name)
+        
+        #check to see if the user has a seed set, if not, generate one but dont set it to the config
+        if seed == None:
+            userSeed = conf.get('seed')
+            if userSeed == "":
+                seed = random.randint(0,999999999999999)
+            else:
+                seed = userSeed
+        else:
+            seed = bleach.clean(seed)
+            await conf.set('seed',seed)
+            
+        
+        #default size to 1024
+        if size == None:
+            size = "1024"
+        await conf.set('size',size)
+        thisview = discord.ui.View(timeout=None)
+        
+        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {conf.get('size')}{', seed: ' + str(seed) if seed else ''}."
+        if(conf.get('model') != ""):
+            message += f" using model: {conf.get('model')}"
+        if(conf.get('lora') != ""):
+            message += f" using lora: {conf.get('lora')}"
+        
+        sent = await context.send(message + f" There are {requests.get()} requests in progress", view=thisview)
+        
+        try:
+            if(int(size) > 4000):
+                throw("Size too large")
+            images=None
+            if(conf.get('model') != "" and conf.get('lora') != ""):
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGMODELLORA",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
+            elif(conf.get('model') != ""):
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGMODEL",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
+            elif(conf.get('lora') != ""):
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMGLORA",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
+            else:
+                images = await self.generate_images(prompt,negative_prompt,"LOCAL_TEXT2IMG",conf.get('model'),conf.get('lora'),conf.get('size'),seed)
+            
+            view=StandardView(self, context, prompt, negative_prompt, images, conf.get('model'),conf.get('lora'),conf.get('size'),seed,spoiler,requests)
+            #delete the message that we sent earlier
+            await context.send(content=message + f" There are {requests.get()} requests in progress",file = discord.File(fp=self.create_collage(images), filename=f"{spoiler.value}collage.png"), view=view)
+            #TODO: Change this to an edit instead of a delete and send
+        except Exception as e:
+            #tell the user that something went wrong
+            await context.send(f"Something went wrong: {e}")
+    
+    
     async def generate_images(self, prompt: str,negative_prompt: str, config_name: str, model: str=None, lora: str=None, size: str="512", seed: int=random.randint(0,999999999999999)):
         with open(self.config[config_name]['CONFIG'], 'r') as file:
             workflow = json.load(file)

@@ -15,34 +15,35 @@ reaction_emojis = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','
 
 
 class PromptModal(discord.ui.Modal):
-    def __init__(self, context: Context,title="Input", prompt: str="", negative_prompt: str=""):
+    prompt = ui.TextInput(label="prompt")
+    negative_prompt = ui.TextInput(label="negative prompt")
+    def __init__(self, context: Context,title="Input", prompt: str="", negative_prompt: str="", parent=None):
         super().__init__(timeout=None, title=title)
-        self.context = context
-        self.title = title
-        self.input = ui.TextInput(label="prompt", placeholder=prompt)
-        self.add_item(self.input)
-        self.input2 = ui.TextInput(label="negative prompt", placeholder=negative_prompt)
-        self.add_item(self.input2)
+        self.prompt.placeholder = prompt
+        self.negative_prompt.placeholder = negative_prompt
+        self.parent = parent
 
     async def on_submit(self, interaction: discord.Interaction):
         #store the new prompt in the database
         #get the current config
 
 
-        config = await self.context.bot.database.get_config(self.context.author.id)
+        # config = await self.context.bot.database.get_config(self.context.author.id)
 
-        #update the config
-        config["prompt"] = self.input.value
-        config["negative_prompt"] = self.input2.value
-        #store the config in the database
-        await self.context.bot.database.store_config(self.context.author.id, config)
+        # #update the config
+        # config["prompt"] = self.input.value
+        # config["negative_prompt"] = self.input2.value
+        # #store the config in the database
+        # await self.context.bot.database.store_config(self.context.author.id, config)
 
+        self.parent.prompt = self.prompt.value
+        self.parent.negative_prompt = self.negative_prompt.value
 
         #tell the user that we updated the prompt
-        await interaction.response.send_message(f"Updated prompt to: {self.input.value}")
+        await interaction.response.send_message(f"Updated prompt to: {self.prompt.value} and negative prompt to: {self.negative_prompt.value}")
 
 class StandardView(discord.ui.View):
-    def __init__(self, parent, context: Context, prompt, negative_prompt, images, model, lora,size,seed,spoiler,requests, *, timeout=300):
+    def __init__(self, parent, context: Context, prompt, negative_prompt, images, model, lora,size,seed,spoiler,requests, *, timeout=1000):
         super().__init__(timeout=timeout)
         self.prompt = prompt
         self.negative_prompt = negative_prompt
@@ -161,7 +162,6 @@ class StandardView(discord.ui.View):
         self.old_images[interaction.message.id] = self.images
         self.images = [self.images[index]]
         #clear the reactions
-        await reactions.clear_reactions()
         await self.context.send(file = discord.File(fp=self.parent.create_collage(self.images), filename=f"{self.spoiler.value}variation.png"), view=self)
 
     #upscale button
@@ -208,12 +208,12 @@ class StandardView(discord.ui.View):
         if(self.context.author != interaction.user):
             return
         #send a modal to ask for a new prompt
-        modal = PromptModal(context=self.context,title="Prompt",prompt=self.prompt, negative_prompt=self.negative_prompt)
+        modal = PromptModal(context=self.context,title="Prompt",prompt=self.prompt, negative_prompt=self.negative_prompt, parent=self)
         await interaction.response.send_modal(modal)
         #update self.prompt from the database
-        config = await self.context.bot.database.get_config(self.context.author.id)
-        self.prompt = config.get('prompt')
-        self.negative_prompt = config.get('negative_prompt')
+        self.prompt = modal.prompt.value
+        self.negative_prompt = modal.negative_prompt.value
+        logger.info(f"self.prompt: {self.prompt} self.negative_prompt: {self.negative_prompt}")
 
 
     @discord.ui.button(label='Save to DM', style=discord.ButtonStyle.blurple, emoji="💾", row=1)

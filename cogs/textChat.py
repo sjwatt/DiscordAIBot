@@ -11,6 +11,11 @@ from discord.ext.commands import Context
 import requests
 import html
 
+#get logging
+import logging
+logger = logging.getLogger('discord_bot')
+logger.setLevel(logging.INFO)
+
 # Here we name the cog and create a new class for the cog.
 class TextChat(commands.Cog, name="textChat"):
     def __init__(self, bot) -> None:
@@ -30,7 +35,11 @@ class TextChat(commands.Cog, name="textChat"):
         """
         # Do your stuff here
         await context.defer()
-        response = run_chatbot(prompt)
+        #get the id of the conversation, for a channel it's the channel id for a dm it's the user id
+        history_id = context.channel.id
+        logger.info("history_id: " + str(history_id))
+        
+        response = run_chatbot(prompt, history_id)
         await context.send(context.author.name + ": " + prompt + "\n" + "AI: " + response)
         # Don't forget to remove "pass", I added this just because there's no content in the method.
 
@@ -41,17 +50,28 @@ with open('context', 'r') as file:
     context = file.read()
 with open('greeting', 'r') as file:
     greeting = file.read()
-global history
-history = {'internal': [], 'visible': []}
-def run_chatbot(user_input):
-    global history, context, greeting
+
+def run_chatbot(user_input, history_id):
+    #open the history file
+    with open('history', 'r') as file:
+        history = file.read()
+        if history == '':
+            history = {'0': {'internal': [], 'visible': []}}
+        else:
+            history = eval(history)
+    #check the history for the conversation
+    if history_id in history:
+        pass
+    else:
+        history[history_id] = {'internal': [], 'visible': []}
     print(user_input)
+    logger.info("history: " + str(history[history_id]))
     request = {
         'user_input': user_input,
         'max_new_tokens': 1000,
         'auto_max_new_tokens': True,
         'max_tokens_second': 0,
-        'history': history,
+        'history': history[history_id],
         'mode': 'chat',  # Valid options: 'chat', 'chat-instruct', 'instruct'
         'character': 'Example',
         'instruction_template': 'Vicuna-v1.1',  # Will get autodetected if unset
@@ -61,10 +81,10 @@ def run_chatbot(user_input):
          'context': context,
         # Optional
         'greeting': greeting, # Optional
-        # 'name1_instruct': 'You', # Optional
-        # 'name2_instruct': 'Assistant', # Optional
-        # 'context_instruct': 'context_instruct', # Optional
-        # 'turn_template': 'turn_template', # Optional
+        'name1_instruct': 'USER:', # Optional
+        'name2_instruct': 'ASSISTANT:', # Optional
+        'context_instruct': 'A chat between a curious user and an affectionate Anime girl. She has an incredibly interesting and complex past and character. She is polite, friendly and looking for love. She loves to talk a lot.', # Optional
+        'turn_template': '<|user|> <|user-message|>\n<|bot|> <|bot-message|></s>\n', # Optional
         'regenerate': False,
         '_continue': False,
         'chat_instruct_command': 'Continue the chat dialogue below. Write a single reply for the character "<|character|>".\n\n<|prompt|>',
@@ -72,29 +92,29 @@ def run_chatbot(user_input):
         # Generation params. If 'preset' is set to different than 'None', the values
         # in presets/preset-name.yaml are used instead of the individual numbers.
         'preset': 'simple-1',
-        'do_sample': True,
-        'temperature': 0.7,
-        'top_p': 0.1,
-        'typical_p': 1,
-        'epsilon_cutoff': 0,  # In units of 1e-4
-        'eta_cutoff': 0,  # In units of 1e-4
-        'tfs': 1,
-        'top_a': 0,
-        'repetition_penalty': 1.18,
-        'repetition_penalty_range': 0,
-        'top_k': 40,
-        'min_length': 0,
-        'no_repeat_ngram_size': 0,
-        'num_beams': 1,
-        'penalty_alpha': 0,
-        'length_penalty': 1,
-        'early_stopping': False,
-        'mirostat_mode': 0,
-        'mirostat_tau': 5,
-        'mirostat_eta': 0.1,
-        'grammar_string': '',
-        'guidance_scale': 1,
-        'negative_prompt': '',
+        # 'do_sample': True,
+        # 'temperature': 0.7,
+        # 'top_p': 0.1,
+        # 'typical_p': 1,
+        # 'epsilon_cutoff': 0,  # In units of 1e-4
+        # 'eta_cutoff': 0,  # In units of 1e-4
+        # 'tfs': 1,
+        # 'top_a': 0,
+        # 'repetition_penalty': 1.18,
+        # 'repetition_penalty_range': 0,
+        # 'top_k': 40,
+        # 'min_length': 100,
+        # 'no_repeat_ngram_size': 0,
+        # 'num_beams': 1,
+        # 'penalty_alpha': 0,
+        # 'length_penalty': 1,
+        # 'early_stopping': False,
+        # 'mirostat_mode': 0,
+        # 'mirostat_tau': 5,
+        # 'mirostat_eta': 0.1,
+        # 'grammar_string': '',
+        # 'guidance_scale': 1,
+        # 'negative_prompt': '',
 
         'seed': -1,
         'add_bos_token': True,
@@ -107,9 +127,12 @@ def run_chatbot(user_input):
 
     response = requests.post(URI, json=request)
     if response.status_code == 200:
-        history = response.json()['results'][0]['history']
-        print(history)
-        result2 = history['visible'][-1][-1]
+        history[history_id] = response.json()['results'][0]['history']
+        #save the history to file
+        with open('history', 'w') as file:
+            file.write(str(history))
+        #print(history)
+        result2 = history[history_id]['visible'][-1][-1]
         result3 = html.unescape(result2)
         return result3
 
