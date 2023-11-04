@@ -48,7 +48,7 @@ def get_model_list(startpos=0):
     # get directory of this program
     model_list = []
     directory = os.path.dirname(os.path.realpath(__file__))
-    checkpoints_dir = os.path.join(directory, "../../comfy/ComfyUI/models/checkpoints")
+    checkpoints_dir = os.path.join("/mnt/nvme0n1p2/ComfyUI/models/checkpoints")
     for filename in os.listdir(checkpoints_dir):
         if filename.endswith(".safetensors"):
             model_list.append(filename[:-12])
@@ -63,7 +63,7 @@ def get_lora_list():
     #get directory of this program
     directory = os.path.dirname(os.path.realpath(__file__))
     #the relative directory is ../comfy/ComfyUI/models/lora
-    for filename in os.listdir(directory + "../../comfy/ComfyUI/models/lora"):
+    for filename in os.listdir("/mnt/nvme0n1p2/ComfyUI/models/lora"):
         if filename.endswith(".safetensors"):
             lora_list.append(filename[:-12])
     return lora_list
@@ -78,7 +78,7 @@ def get_model_list_long():
     #trim the last 2 directories off the path
     directory = os.path.dirname(os.path.dirname(directory))
     
-    for filename in os.listdir(directory + "/comfy/ComfyUI/models/checkpoints"):
+    for filename in os.listdir("/mnt/nvme0n1p2/ComfyUI/models/checkpoints"):
         if filename.endswith(".safetensors"):
             model_list.append(filename[:-12])
             
@@ -96,7 +96,7 @@ def get_lora_list_long():
     #trim the last 2 directories off the path
     directory = os.path.dirname(os.path.dirname(directory))
     
-    for filename in os.listdir(directory + "/comfy/ComfyUI/models/loras"):
+    for filename in os.listdir("/mnt/nvme0n1p2/ComfyUI/models/loras"):
         if filename.endswith(".safetensors"):
             lora_list.append(filename[:-12])
     #sort the list

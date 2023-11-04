@@ -110,6 +110,10 @@ class LoggingFormatter(logging.Formatter):
 
 logger = logging.getLogger("discord_bot")
 logger.setLevel(logging.INFO)
+#open the log file
+log_file = open("/var/log/discordBot/discordBot.log", "w")
+#set the log file to the logger
+logger.addHandler(logging.StreamHandler(log_file))
 
 #global debug command line argument
 for arg in sys.argv:

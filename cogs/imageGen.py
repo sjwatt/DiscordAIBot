@@ -340,7 +340,7 @@ Generate images with:
             await conf.set('seed',seed)
             
         
-        #default size to 1024
+        #default size to 512
         if size == None:
             size = "1024"
         await conf.set('size',size)
@@ -385,7 +385,7 @@ Generate images with:
     # Dynamically get model choices from the specified directories
     directory = os.path.dirname(os.path.realpath(__file__))
     directory = os.path.dirname(os.path.dirname(directory))
-    model_choices = get_choices_from_directory(directory + "/comfy/ComfyUI/models/checkpoints")
+    model_choices = get_choices_from_directory("/mnt/nvme0n1p2/ComfyUI/models/checkpoints")
     remove_models = ["dreamshaper_7","v1-5-pruned-emaonly","chilloutmix_NiPrunedFp32Fix","768-v-ema","colossusProjectXLSFW_v202BakedVAE","anything-v3-fp16-pruned","epicrealism_naturalSinRC1VAE"]
     #remove the models in remove_models from the list of model_choices
     for model in remove_models:
@@ -397,7 +397,7 @@ Generate images with:
     #trim the model_choices to 25
     model_choices = model_choices[:25]
     
-    lora_choices = get_choices_from_directory(directory + "/comfy/ComfyUI/models/loras") 
+    lora_choices = get_choices_from_directory("/mnt/nvme0n1p2/ComfyUI/models/loras") 
     #sort the lora_choices alphabetically
     lora_choices.sort(key=lambda x: x.name)
     
@@ -459,7 +459,7 @@ Generate images with:
         
         #default size to 1024
         if size == None:
-            size = "1024"
+            size = "512"
         await conf.set('size',size)
         thisview = discord.ui.View(timeout=None)
         
@@ -684,20 +684,24 @@ Generate images with:
         return filename
 
 #get the server address from the config file, round robin sequentially the addresses
-currentServer = 0
-def get_server_address(config):
-    server_addresses = config['LOCAL']['SERVER_ADDRESS'].split(',')
-    global currentServer
-    server_address = server_addresses[currentServer]
-    currentServer = (currentServer + 1) % len(server_addresses)
-    return server_address
+
 
 #ServerContext class, provides a server context for processes that need a server.
 #Since each server stores temp files as part of some processes it is necessary to use the same server through that process
+currentServer = 0
 class ServerContext:
     def __init__(self, config):
         self.config = config
-        self.server_address = get_server_address(config)
+        self.server_address = self.get_server_address()
+    
+    #get a server address in a thread safe way
+    def get_server_address(self):
+        server_addresses = self.config['LOCAL']['SERVER_ADDRESS'].split(',')
+        global currentServer
+        server_address = server_addresses[currentServer]
+        currentServer = (currentServer + 1) % len(server_addresses)
+        return server_address
+    
 
 
 class ImageGenerator:
@@ -708,7 +712,6 @@ class ImageGenerator:
         self.uri = f"ws://{self.serverContext.server_address}/ws?clientId={self.client_id}"
         self.ws = None
         
-
     async def connect(self):
         self.ws = await websockets.connect(self.uri)
 

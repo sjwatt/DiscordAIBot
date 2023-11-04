@@ -77,7 +77,6 @@ class StandardView(discord.ui.View):
         await interaction.response.edit_message(view=self)
 
         #update the button
-
         button.disabled = False
 
         #re-randomize the seed
@@ -143,18 +142,13 @@ class StandardView(discord.ui.View):
         reactios_to_add = []
         for i in range(len(self.images)):
             reactios_to_add.append(reaction_emojis[i])
-         #send the reactions'
+        #send the reactions
         await asyncio.gather(*[reactions.add_reaction(emoji) for emoji in reactios_to_add])
 
-
-        #this section should be moved to its own handler
         #wait for reaction
         reaction = await self.context.bot.wait_for("reaction_add", check=lambda reaction, user: user == self.context.author and reaction.message.id == reactions.id and str(reaction.emoji) in reaction_emojis, timeout=self.timeout)
         #send the image corresponding to the reaction
         button.disabled = False
-        #await self.context.send(file = discord.File(fp=self.images[reaction_emojis.index(str(reaction[0]))], filename=f"{self.spoiler.value}variation.png"), view=self)
-        #acknolwedge the reaction
-        await self.context.send(f"{self.context.author} chose {reaction[0]}")
         #get the index of the reaction from reaction_emojis
         index = reaction_emojis.index(str(reaction[0]))
         #send the image

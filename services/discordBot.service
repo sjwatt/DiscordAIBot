@@ -1,0 +1,17 @@
+[Unit]
+Description=Discord Bot
+After=network.target
+
+[Service]
+Type=simple
+User=llm
+WorkingDirectory=/home/llm/DiscordBot
+ExecStart=/home/llm/anaconda3/bin/python /home/llm/DiscordBot/bot.py
+Restart=always
+
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=discordBot
+
+[Install]
+WantedBy=multi-user.target
