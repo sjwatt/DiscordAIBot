@@ -30,3 +30,17 @@ CREATE TABLE IF NOT EXISTS `files` (
   `file` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+/*table of registered servers*/
+CREATE TABLE IF NOT EXISTS `servers` (
+  `server_id` varchar(20) PRIMARY KEY,
+  `allowed` boolean NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+/*table of registered channels*/
+CREATE TABLE IF NOT EXISTS `channels` (
+  `channel_id` varchar(20) PRIMARY KEY,
+  `allowed` boolean NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

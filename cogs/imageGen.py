@@ -65,8 +65,6 @@ class Imagine(commands.Cog, name="imagine"):
     def channel_check(ctx):
         if ctx.bot.channel_check(ctx):
             return True
-        elif ctx.guild == None:
-            return True
         return False
     
     

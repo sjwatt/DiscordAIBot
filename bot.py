@@ -158,6 +158,8 @@ class DiscordBot(commands.Bot):
         self.database = None
         self.allowed_channels = AllowedChannels
         self.allowed_guilds = AllowedServers
+        self.registered_channels = []
+        self.registered_servers = []
 
     async def init_db(self) -> None:
         async with aiosqlite.connect(
@@ -192,6 +194,18 @@ class DiscordBot(commands.Bot):
         """
         statuses = ["with you!", "with Krypton!", "with humans!"]
         await self.change_presence(activity=discord.Game(random.choice(statuses)))
+        
+    @tasks.loop(seconds=5)
+    async def registered_task(self) -> None:
+        """
+        Setup the registered channels and servers task of the bot.
+        """
+        #logger.info("Checking for registered channels and servers")
+        #get the list of registered servers
+        self.registered_servers = await self.database.get_registered_servers()
+        #get the list of registered channels
+        self.registered_channels = await self.database.get_registered_channels()
+        #logger.info(f"Registered Servers and channels: {self.registered_servers} : {self.registered_channels}")
 
     @status_task.before_loop
     async def before_status_task(self) -> None:
@@ -219,9 +233,11 @@ class DiscordBot(commands.Bot):
                 f"{os.path.realpath(os.path.dirname(__file__))}/database/database.db"
             )
         )
+        self.registered_task.start()
+        
         
     #check if message is in allowed channel
-    def channel_check(self, ctx):
+    def new_channel_check(self, ctx):
         if ctx.guild is None:
             return True
         if ctx.guild.id in AllowedServers:
@@ -230,6 +246,22 @@ class DiscordBot(commands.Bot):
             else:
                 return False
         return False
+    
+    #check if message is in registered server/channel
+    def channel_check(self, ctx):
+        logger.info(f"Channel Check: {ctx}")
+        #always allow DMs
+        if ctx.guild is None:
+            return True
+        #check if the server is registered
+        if str(ctx.guild.id) in self.registered_servers:
+            #check if the channel is registered
+            if str(ctx.channel.id) in self.registered_channels:
+                return True
+        return False
+    
+    
+    
     
     @commands.check(channel_check)
     async def on_message(self, message: discord.Message) -> None:

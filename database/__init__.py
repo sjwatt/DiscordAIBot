@@ -28,16 +28,41 @@ CREATE TABLE IF NOT EXISTS `configs` (
 
 /*table of saved configs*/
 CREATE TABLE IF NOT EXISTS `saved_configs` (
-  `id` INTEGER PRIMARY KEY,
   `user_id` varchar(20) NOT NULL,
   `name` varchar(255) NOT NULL,
   `config` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id,name)
+);
+
+/*table of user files*/
+CREATE TABLE IF NOT EXISTS `files` (
+  `user_id` varchar(20) PRIMARY KEY,
+  `file` text NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+/*table of registered servers*/
+CREATE TABLE IF NOT EXISTS `servers` (
+  `server_id` varchar(20) PRIMARY KEY,
+  `allowed` boolean NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+/*table of registered channels*/
+CREATE TABLE IF NOT EXISTS `channels` (
+  `channel_id` varchar(20) PRIMARY KEY,
+  `allowed` boolean NOT NULL DEFAULT 0,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 """
 
 
 import aiosqlite
+import logging
+
+logger = logging.getLogger('discord_bot')
+logger.setLevel(logging.INFO)
 
 
 class DatabaseManager:
@@ -269,3 +294,60 @@ class DatabaseManager:
             for row in result:
                 result_list.append(row)
             return result_list
+        
+    async def get_registered_servers(self) -> list:
+        #get the list of registered server ids that are allowed
+        rows = await self.connection.execute(
+            "SELECT server_id FROM servers WHERE allowed=?",
+            (
+                True,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+            result_list = []
+            for row in result:
+                row = int(row[0])
+                result_list.append(str(row))
+            return result_list
+        
+
+    async def register_server(self, server_id: str, allowed: bool) -> None:
+        #register a server
+        await self.connection.execute(
+            "INSERT OR REPLACE INTO servers(server_id, allowed) VALUES (?, ?)",
+            (
+                server_id,
+                allowed,
+            ),
+        )
+        await self.connection.commit()
+        
+    async def get_registered_channels(self) -> list:
+        #get the list of registered channel ids that are allowed
+        rows = await self.connection.execute(
+            "SELECT channel_id FROM channels WHERE allowed=?",
+            (
+                True,
+            ),
+        )
+        async with rows as cursor:
+            result = await cursor.fetchall()
+            result_list = []
+            for row in result:
+                #format the row to be an int
+                row = int(row[0])
+                result_list.append(str(row))
+            return result_list
+        
+        
+    async def register_channel(self, channel_id: str, allowed: bool) -> None:
+        #register a channel
+        await self.connection.execute(
+            "INSERT OR REPLACE INTO channels(channel_id, allowed) VALUES (?, ?)",
+            (
+                channel_id,
+                allowed,
+            ),
+        )
+        await self.connection.commit()

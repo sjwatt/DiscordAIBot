@@ -1,13 +1,14 @@
 [Unit]
 Description=Discord Bot
-After=network.target
+After=graphical.target
 
 [Service]
 Type=idle
 User=llm
 WorkingDirectory=/home/llm/DiscordBot
-ExecStart=/home/llm/anaconda3/bin/python /home/llm/DiscordBot/bot.py
+ExecStart=/home/llm/anaconda3/bin/python /home/llm/DiscordBot/bot.py --debug
 Restart=always
+RestartSec=3
 
 StandardOutput=syslog
 StandardError=syslog

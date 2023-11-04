@@ -9,9 +9,10 @@ Version: 6.1.0
 import discord
 from discord import app_commands
 from discord.ext import commands
-from discord.ext.commands import Context
+from discord.ext.commands import Context, has_permissions
 #import modal stuff
 from discord import ui
+import os
 
 
 class Owner(commands.Cog, name="owner"):
@@ -187,6 +188,8 @@ class Owner(commands.Cog, name="owner"):
         embed = discord.Embed(description="Shutting down. Bye! :wave:", color=0xBEBEFE)
         await context.send(embed=embed)
         await self.bot.close()
+        os._exit(0)
+        
 
     @commands.hybrid_command(
         name="say",
@@ -362,6 +365,50 @@ class Owner(commands.Cog, name="owner"):
         """
         modal = Questionnaire()
         await context.interaction.response.send_modal(modal)
+        
+    @commands.hybrid_command(
+        name="registerserver",
+        description="Register a server to the bot",
+    )
+    @app_commands.describe(serverid="The id of the server to register")
+    @commands.is_owner()
+    async def registerserver(self, context: Context, serverid: str) -> None:
+        """
+        Register a server to the bot.
+
+        :param context: The hybrid command context.
+        """
+        await self.bot.database.register_server(serverid, True)
+        await context.send("Server registered")
+        
+    @commands.hybrid_command(
+        name="registerchannel",
+        description="Register a channel to the bot",
+    )
+    @has_permissions(administrator=True)
+    async def registerchannel(self, context: Context) -> None:
+        """
+        Register a channel to the bot.
+
+        :param context: The hybrid command context.
+        """
+        await self.bot.database.register_channel(context.channel.id, True)
+        await context.send("Channel registered")
+        
+    #unregisterchannel
+    @commands.hybrid_command(
+        name="unregisterchannel",
+        description="Unregister a channel to the bot",
+    )
+    @has_permissions(administrator=True)
+    async def unregisterchannel(self, context: Context) -> None:
+        """
+        Unregister a channel to the bot.
+
+        :param context: The hybrid command context.
+        """
+        await self.bot.database.register_channel(context.channel.id,False)
+        await context.send("Channel unregistered")
 
 class Questionnaire(ui.Modal, title='Questionnaire Response'):
     name = ui.TextInput(label='Name')
