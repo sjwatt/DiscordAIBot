@@ -3,7 +3,7 @@ Description=Discord Bot
 After=network.target
 
 [Service]
-Type=simple
+Type=idle
 User=llm
 WorkingDirectory=/home/llm/DiscordBot
 ExecStart=/home/llm/anaconda3/bin/python /home/llm/DiscordBot/bot.py

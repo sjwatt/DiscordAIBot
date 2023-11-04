@@ -11,7 +11,7 @@ Restart=always
 
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=discordBot
+SyslogIdentifier=chatBot
 
 [Install]
 WantedBy=multi-user.target
