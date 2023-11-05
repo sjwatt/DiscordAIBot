@@ -13,7 +13,10 @@ from discord.ext.commands import Context, has_permissions
 #import modal stuff
 from discord import ui
 import os
+import logging
 
+logger = logging.getLogger('discord_bot')
+logger.setLevel(logging.INFO)
 
 class Owner(commands.Cog, name="owner"):
     def __init__(self, bot) -> None:
@@ -212,19 +215,23 @@ class Owner(commands.Cog, name="owner"):
     )
     @app_commands.describe(message="The message that should be repeated by the bot")
     @commands.is_owner()
-    async def broadcast(self, context: Context, *, message: str) -> None:
+    async def broadcast(self, context: Context, message: str) -> None:
         """
         The bot will send a message to all servers, in their allowed channel.
 
         :param context: The hybrid command context.
         :param message: The message that should be repeated by the bot.
         """
+        logger.info(f"Broadcasting message {message}")
         for guild in self.bot.guilds:
-            if guild.id in self.bot.allowed_guilds:
+            if str(guild.id) in self.bot.registered_servers:
+                logger.info(f"Broadcasting to {guild.name}")
                 #for each channel in the guild check if it is in the allowed_channels
                 for channel in guild.channels:
-                    if channel.name in self.bot.allowed_channels:
+                    if str(channel.id) in self.bot.registered_channels:
+                        logger.info(f"Broadcasting to {channel.name}")
                         await channel.send(message)
+        
 
     @commands.hybrid_command(
         name="embed",
