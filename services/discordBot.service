@@ -5,8 +5,8 @@ After=graphical.target
 [Service]
 Type=idle
 User=llm
-WorkingDirectory=/home/llm/DiscordBot
-ExecStart=/home/llm/anaconda3/bin/python /home/llm/DiscordBot/bot.py --debug
+WorkingDirectory=/mnt/nvme0n1p2/DiscordAIBot
+ExecStart=/home/llm/anaconda3/bin/python /mnt/nvme0n1p2/DiscordAIBot/bot.py --debug
 Restart=always
 RestartSec=3
 

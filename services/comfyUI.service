@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=llm
-WorkingDirectory=/home/llm/DiscordBot
+WorkingDirectory=/mnt/nvme0n1p2/ComfyUI
 ExecStart=/home/llm/anaconda3/bin/python /mnt/nvme0n1p2/ComfyUI/main.py --cuda-device 0 --port 8188 --listen 
 Restart=always
 
