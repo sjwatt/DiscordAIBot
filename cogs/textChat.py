@@ -42,6 +42,38 @@ class TextChat(commands.Cog, name="textChat"):
         response = run_chatbot(prompt, history_id)
         await context.send(context.author.name + ": " + prompt + "\n" + "AI: " + response)
         # Don't forget to remove "pass", I added this just because there's no content in the method.
+        
+    @commands.hybrid_command(
+        name="resetchathistory",
+        description="Reset the chat history for this channel",
+    )
+    async def resetchathistory(self, context: Context) -> None:
+        """
+        This is a testing command that does nothing.
+
+        :param context: The application command context.
+        """
+        # Do your stuff here
+        await context.defer()
+        #get the id of the conversation, for a channel it's the channel id for a dm it's the user id
+        history_id = context.channel.id
+        
+        #open the history file
+        with open('history', 'r') as file:
+            history = file.read()
+            if history == '':
+                history = {'0': {'internal': [], 'visible': []}}
+            else:
+                history = eval(history)
+        #check the history for the conversation
+        if history_id in history:
+            history[history_id] = {'internal': [], 'visible': []}
+        else:
+            history[history_id] = {'internal': [], 'visible': []}
+        #save the history to file
+        with open('history', 'w') as file:
+            file.write(str(history))
+        await context.send("Chat history reset")
 
 HOST = 'localhost:5000'
 URI = f'http://{HOST}/api/v1/chat'

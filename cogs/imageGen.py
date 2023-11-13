@@ -423,6 +423,7 @@ Generate images with:
 
         :param context: The application command context.
         """
+        logger.info("imgcommand")
         #try to load the user's previous config
         config = await self.bot.database.get_config(context.author.id)
         
@@ -440,8 +441,10 @@ Generate images with:
         conf = UserConfig(self.bot,context.author.id)
         await conf.loadconfig()
         #set the config values to the inputs
-        await conf.set('model',model.name)
-        await conf.set('lora',lora.name)
+        if model != None:
+            await conf.set('model',model.name)
+        if lora != None:
+            await conf.set('lora',lora.name)
         
         #check to see if the user has a seed set, if not, generate one but dont set it to the config
         if seed == None:
