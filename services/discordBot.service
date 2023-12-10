@@ -1,6 +1,6 @@
 [Unit]
 Description=Discord Bot
-After=graphical.target
+After=multi-user.target
 
 [Service]
 Type=idle
@@ -15,4 +15,4 @@ StandardError=syslog
 SyslogIdentifier=discordBot
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=graphical.target
