@@ -277,9 +277,9 @@ Generate images with:
         await self.bot.database.store_config(context.author.id, config)
         #tell the user that we are generating the animation
         
-        await context.send(f"{context.author} asked me to imagine an animation of {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using model: {config['model']} using lora: {config['lora']} There are {requests.get()} requests in progress")
+        await context.send(f"{context.author} asked me to imagine an animation of {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} There are {requests.get()} requests in progress")
         #generate the animation
-        gif = await self.generate_animation(config_name="LOCAL_TEXT2ANIMATION",prompt=prompt,negative_prompt=negative_prompt,model=config['model'],lora=config['lora'])
+        gif = await self.generate_animation(config_name="LOCAL_TEXT2ANIMATION",prompt=prompt,negative_prompt=negative_prompt)
         #send the animation(no buttons)
         await context.send(file = discord.File(fp=self.create_gif(gif), filename=f"animation.gif"))
         return
@@ -560,8 +560,8 @@ Generate images with:
         prompt_nodes = self.config.get(config_name, 'PROMPT_NODES').split(',')
         neg_prompt_nodes = self.config.get(config_name, 'NEG_PROMPT_NODES').split(',')
         rand_seed_nodes = self.config.get(config_name, 'RAND_SEED_NODES').split(',')
-        model_nodes = self.config.get(config_name, 'MODEL_NODES').split(',')
-        lora_nodes = self.config.get(config_name, 'LORA_NODES').split(',')
+        #model_nodes = self.config.get(config_name, 'MODEL_NODES').split(',')
+        #lora_nodes = self.config.get(config_name, 'LORA_NODES').split(',')
         
         if(prompt != None and prompt_nodes[0] != ''):
             for node in prompt_nodes:
@@ -572,12 +572,12 @@ Generate images with:
         if(rand_seed_nodes[0] != ''):
             for node in rand_seed_nodes:
                 workflow[node]["inputs"]["seed"] = seed
-        if(model_nodes[0] != ' '):
-            for node in model_nodes:
-                workflow[node]["inputs"]["ckpt_name"] = model + ".safetensors"
-        if(lora_nodes[0] != ' '):
-            for node in lora_nodes:
-                workflow[node]["inputs"]["lora_name"] = lora + ".safetensors"
+        #if(model_nodes[0] != ' '):
+        #    for node in model_nodes:
+        #        workflow[node]["inputs"]["ckpt_name"] = model + ".safetensors"
+        #if(lora_nodes[0] != ' '):
+        #    for node in lora_nodes:
+        #        workflow[node]["inputs"]["lora_name"] = lora + ".safetensors"
         
         logger.info("ImageGenerator.generate_animation workflow:" + str(workflow))
         images = await generator.get_images(workflow)
