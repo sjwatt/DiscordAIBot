@@ -256,8 +256,9 @@ Generate images with:
     @app_commands.describe(negative_prompt='Prompt for what you want to steer the AI away from')
     @app_commands.describe(model='Model to use for generation')
     @app_commands.describe(lora='Lora to use for generation')
+    @app_commands.describe(framecount='number of frames to generate')
     @commands.check(channel_check)
-    async def imagineanimationcommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None) -> None:
+    async def imagineanimationcommand(self, context: Context, prompt: str, negative_prompt: str=None, model: str=None, lora: str=None, framecount: str="25") -> None:
         #get the user's config from the database
         config = await self.bot.database.get_config(context.author.id)
         #sanitize the inputs
@@ -270,6 +271,7 @@ Generate images with:
         if lora != None:
             lora = bleach.clean(lora)
             config['lora'] = lora
+        framecount = bleach.clean(framecount)
         #store the config back to the database
         await self.bot.database.store_config(context.author.id, config)
         
@@ -277,9 +279,9 @@ Generate images with:
         await self.bot.database.store_config(context.author.id, config)
         #tell the user that we are generating the animation
         
-        await context.send(f"{context.author} asked me to imagine an animation of {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} There are {requests.get()} requests in progress")
+        await context.send(f"{context.author} asked me to imagine an animation of {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} and {framecount} frames. There are {requests.get()} requests in progress")
         #generate the animation
-        gif = await self.generate_animation(config_name="LOCAL_TEXT2ANIMATION",prompt=prompt,negative_prompt=negative_prompt)
+        gif = await self.generate_animation(config_name="LOCAL_TEXT2ANIMATION",prompt=prompt,negative_prompt=negative_prompt, framecount=framecount)
         #send the animation(no buttons)
         await context.send(file = discord.File(fp=self.create_gif(gif), filename=f"animation.gif"))
         return
@@ -549,7 +551,7 @@ Generate images with:
 
         return images
     
-    async def generate_animation(self,config_name: str, prompt: str,negative_prompt: str, model: str=None, lora: str=None, size: str="512", seed: int=random.randint(0,999999999999999)):
+    async def generate_animation(self,config_name: str, prompt: str,negative_prompt: str, model: str=None, lora: str=None, size: str="512", seed: int=random.randint(0,999999999999999), framecount: str="25"):
         with open(self.config[config_name]['CONFIG'], 'r') as file:
             workflow = json.load(file)
         serverContext = ServerContext(self.config)
@@ -560,6 +562,7 @@ Generate images with:
         prompt_nodes = self.config.get(config_name, 'PROMPT_NODES').split(',')
         neg_prompt_nodes = self.config.get(config_name, 'NEG_PROMPT_NODES').split(',')
         rand_seed_nodes = self.config.get(config_name, 'RAND_SEED_NODES').split(',')
+        framecount_nodes = self.config.get(config_name, 'FRAMECOUNT_NODES').split(',')
         #model_nodes = self.config.get(config_name, 'MODEL_NODES').split(',')
         #lora_nodes = self.config.get(config_name, 'LORA_NODES').split(',')
         
@@ -572,6 +575,9 @@ Generate images with:
         if(rand_seed_nodes[0] != ''):
             for node in rand_seed_nodes:
                 workflow[node]["inputs"]["seed"] = seed
+        if(framecount_nodes[0] != ''):
+            for node in framecount_nodes:
+                workflow[node]["inputs"]["video_frames"] = framecount
         #if(model_nodes[0] != ' '):
         #    for node in model_nodes:
         #        workflow[node]["inputs"]["ckpt_name"] = model + ".safetensors"
