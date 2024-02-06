@@ -249,7 +249,7 @@ Generate images with:
         await conf.set('negative_prompt',negative_prompt)
         
         view=StandardView(self, context, conf.get('prompt'), conf.get('negative_prompt'), [imagefile], conf.get('model'), conf.get('lora'),512,random.randint(0,999999999999999),app_commands.Choice(name='no spoiler', value=''),requests)
-        await context.send(file = discord.File(fp=self.create_collage([imagefile]), filename=f"collage.png"), view=view)
+        await context.send(file = discord.File(fp=self.save_file(imagefile), filename=f"collage.png"), view=view)
         
     #imagineanimation command, this is the animation generation command
     @commands.hybrid_command(
@@ -680,6 +680,16 @@ Generate images with:
         collage.save(collage_path)
 
         return collage_path
+    
+    def save_file(self, image):
+        image_width = image.width
+        image_height = image.height
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        file_path = f"./out/images_{timestamp}.png"
+        output = Image.new('RGB', (image_width, image_height), (255, 255, 255))
+        output.paste(image, (0, 0))
+        output.save(file_path)
+        return file_path
     
     def create_gif(self,gif_images):
         gif_image = gif_images[0]
