@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 User=llm
 WorkingDirectory=/mnt/nvme0n1p2/text-generation-webui
-ExecStart=/home/llm/anaconda3/bin/python server.py --listen --extension api --model ehartford_Wizard-Vicuna-13B-Uncensored
+ExecStart=/home/llm/anaconda3/bin/python server.py --listen --extension api --model ehartford_Wizard-Vicuna-13B-Uncensored 
 Restart=always
 
 StandardOutput=syslog

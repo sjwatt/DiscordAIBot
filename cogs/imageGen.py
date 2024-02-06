@@ -46,6 +46,10 @@ from libs.Comfy_interface import get_history, get_image, queue_prompt, upload_im
 from libs.LiveRequestTracker import LiveRequestTracker
 from libs.UserConfig import UserConfig
 
+import yaml
+with open("textTemplates/en.yaml", 'r') as stream:
+    text = yaml.safe_load(stream)
+
 logger = logging.getLogger('discord_bot')
 logger.setLevel(logging.INFO)
 
