@@ -350,7 +350,7 @@ Generate images with:
         await conf.set('size',size)
         thisview = discord.ui.View(timeout=None)
         
-        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {conf.get('size')}{', seed: ' + str(seed) if seed else ''}."
+        message = f"{context.author} asked me to imagine {prompt}{' with negative prompt: ' + negative_prompt if negative_prompt else ''} using size: {conf.get('size')}{', seed: ' + str(seed) if seed else ''}. Generating this image will burn about 1/2 a gram of coal. "
         if(conf.get('model') != ""):
             message += f" using model: {conf.get('model')}"
         if(conf.get('lora') != ""):

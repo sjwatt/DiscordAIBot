@@ -38,10 +38,30 @@ class TextChat(commands.Cog, name="textChat"):
         #get the id of the conversation, for a channel it's the channel id for a dm it's the user id
         history_id = context.channel.id
         logger.info("history_id: " + str(history_id))
-        
+        prompt = context.author.name + ": " + prompt
         response = run_chatbot(prompt, history_id)
-        await context.send(context.author.name + ": " + prompt + "\n" + "AI: " + response)
+        await context.send(prompt + "\n" + "AI: " + response)
         # Don't forget to remove "pass", I added this just because there's no content in the method.
+    
+    @commands.hybrid_command(
+        name="schat",
+        description="Chat with the AI in streaming mode",
+    )
+    async def schat(self, context: Context, prompt: str) -> None:
+        """
+        This is a streaming mode chat command.
+        :param context: The application command context.
+        :param prompt: The user input.
+        
+        """
+        await context.defer()
+        #get the id of the conversation, for a channel it's the channel id for a dm it's the user id
+        history_id = context.channel.id
+        logger.info("history_id: " + str(history_id))
+        
+        #TODO: run the streaming chatbot
+        #for now just send an error message
+        await context.send("Streaming chat is not yet implemented")
         
     @commands.hybrid_command(
         name="resetchathistory",
